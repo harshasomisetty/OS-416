@@ -31,22 +31,36 @@ void push(tcb * thread){
         head = node;
     } else{
 
-        while(ptr->next != NULL &&
-              ptr->next->data->elapsed < node->data->elapsed){
+        while(ptr->next != NULL && ptr->data->elapsed <= node->data->elapsed){
             ptr = ptr->next;
         }
-        node->next = ptr->next;
-        ptr->next = node;
+        
+        if (ptr == head) { // insert node at head of queue
+            node->next = ptr->next;
+            ptr->next = node;
+        }else{
+            node->next = ptr->next;
+            ptr->next = node;
+        }
     }
     
 }
 
-        
+void printQueue(){
+    pthread_node * ptr = head;
+    printf("printing queue\n");
+    while(ptr != NULL){
+        printf("thread id %x\n", ptr->data->id);
+        ptr = ptr->next;
+    }
+}
+
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
 
-    printf("creating thread");
+
     thread_count++;
+    printf("creating thread %d\n", thread_count);
     
     tcb* thread_new = (tcb*) malloc(sizeof(tcb));
     
@@ -60,14 +74,14 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
 
     getcontext(thread_new->context);
     
-    (*thread_new).context.uc_stack.ss_sp = malloc(STACKSIZE);
-    (*thread_new).context.uc_ss_size = STACKSIZE;
-    (*thread_new).context.uc_link = NULL;    
+    thread_new->context->uc_stack.ss_sp = malloc(STACKSIZE);
+    thread_new->context->uc_stack.ss_size = STACKSIZE;
+    thread_new->context->uc_link = NULL;    
 
-    makecontext( (*thread_new).context, (void (*)()) function, 1, arg);
+    makecontext( thread_new->context, (void (*)()) function, 1, arg);
     
-    add_thread_queue(thread_new);
-    *thread = 
+    push(thread_new);
+    *thread = thread_new->id;
     return 0;
 };
 

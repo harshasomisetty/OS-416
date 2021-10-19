@@ -1,0 +1,8 @@
+#!/bin/sh
+cd ..
+make clean
+make
+cd benchmarks
+make clean
+make test
+./test

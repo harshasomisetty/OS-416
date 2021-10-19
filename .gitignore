@@ -1,0 +1,12 @@
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+*.o
+*.dYSM
+*.plist
+*.out
+*.a
+!benchmarks/t

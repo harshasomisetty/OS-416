@@ -7,7 +7,8 @@
 #ifndef MYTHREAD_T_H
 #define MYTHREAD_T_H
 
-#define _GNU_SOURCE
+//#define _GNU_SOURCE
+#define _XOPEN_SOURCE
 
 /* To use Linux pthread Library in Benchmark, you have to comment the USE_MYTHREAD macro */
 #define USE_MYTHREAD 1
@@ -20,13 +21,14 @@
 #include <stdlib.h>
 #include <ucontext.h>
 
+
 typedef uint mypthread_t;
 
 #define READY 0           // e.g., thread->status = READY;
 #define SCHEDULED 1
 #define BLOCKED 2
 
-#define STACKSIZE 10000
+#define STACKSIZE (1<<15)
     
 typedef struct threadControlBlock {
 	/* add important states in a thread control block */
@@ -69,7 +71,7 @@ typedef struct mypthread_mutex_t {
 
 
 /* Function Declarations: */
-
+void printQueue();
 /* create a new thread */
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr, void
     *(*function)(void*), void * arg);
