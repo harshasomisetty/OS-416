@@ -5,20 +5,31 @@
 #include "../mypthread.h"
 
 
-/* A scratch program template on which to call and
- * test mypthread library functions as you implement
- * them.
- *
- * You can modify and use this program as much as possible.
- * This will not be graded.
- */
 int thread_num = 10;
+/* void printQueue(){ */
+/*     pthread_node * ptr = head; */
+/*     printf("printing queue\n"); */
+/*     while(ptr != NULL){ */
+/*         printf("thread id %x\n", ptr->data->id); */
+/*         ptr = ptr->next; */
+/*     } */
+/* } */
+
 void *myThreadFun(void *vargp)
 {
-    sleep(1);
-    printf("Printing GeeksQuiz from Thread \n");
+    sleep(2);
+    printf("myThreadFun run \n");
     return NULL;
 }
+
+void *myThreadFun1(void *vargp)
+{
+
+    printf("exitied quick\n");
+    pthread_exit(NULL);
+
+}
+
 void test1(){
 
     pthread_t thread_id;
@@ -26,7 +37,7 @@ void test1(){
     pthread_create(&thread_id, NULL, myThreadFun, NULL);
     printf("sdf %x\n", thread_id);
     //    pthread_join(thread_id, NULL);
-    printf("After Thread\n");
+    pthread_join(thread_id, NULL);
 }
 
 void test2(){
@@ -35,12 +46,29 @@ void test2(){
     for (int i = 0; i < thread_num; i++){
         pthread_create(&thread[i], NULL, &myThreadFun, NULL);
     }
-    printQueue();
+
+
+    for (int i = 0; i < thread_num; ++i){
+        pthread_join(thread[i], NULL);
+    }
 }
+
+/* void exit_test(){ */
+/*     pthread_t thread1, thread2; */
+/*     pthread_create(&thread1, NULL, myThreadFun, NULL); */
+/*     pthread_create(&thread2, NULL, myThreadFun1, NULL); */
+
+
+/*     pthread_join(thread2, NULL); */
+/*     pthread_join(thread1, NULL); */
+/*     printf("done main\n"); */
+/* } */
+
 int main()
 {
-
-    test2();
+    test1();
+    printf("hi");
+    //    exit_test();
 
     exit(0);
 }

@@ -1,3 +1,4 @@
+
 // File:	mypthread.c
 
 // List all group member's name: Harsha Somisetty, Hugo De Moraes
@@ -11,10 +12,12 @@
 int thread_count = 0;
 
 pthread_node * head = NULL;
+pthread_node * currentN = NULL;
 
+ucontext_t * schedulerC = NULL;
 
 pthread_node* newNode(tcb* thread){
-    pthread_node *node = (struct pthread_node*) malloc(sizeof(pthread_node));
+    pthread_node *node = (struct pthread_node*) malloc(sizeof(pthread_node)); // node or listitem
     (*node).data = thread;
     (*node).data->elapsed = 0;
     (*node).next = NULL;
@@ -22,47 +25,46 @@ pthread_node* newNode(tcb* thread){
 }
 
 // circular queue of thread
-void push(tcb * thread){
-
-    pthread_node * ptr = head;
+void push(pthread_node * node){
+    if (node != NULL){
+        pthread_node * ptr = head;
     
-    pthread_node * node = newNode(thread);
-    if (head == NULL){
-        head = node;
-    } else{
+        if (head == NULL){
+            head = node;
+        } else{
 
-        while(ptr->next != NULL && ptr->data->elapsed <= node->data->elapsed){
-            ptr = ptr->next;
-        }
+            while(ptr->next != NULL && ptr->data->elapsed <= node->data->elapsed){
+                ptr = ptr->next;
+            }
         
-        if (ptr == head) { // insert node at head of queue
-            node->next = ptr->next;
-            ptr->next = node;
-        }else{
-            node->next = ptr->next;
-            ptr->next = node;
+            if (ptr == head) { // insert node at head of queue
+                node->next = ptr->next;
+                ptr->next = node;
+            }else{
+                node->next = ptr->next;
+                ptr->next = node;
+            }
         }
     }
-    
 }
 
-void printQueue(){
-    pthread_node * ptr = head;
-    printf("printing queue\n");
-    while(ptr != NULL){
-        printf("thread id %x\n", ptr->data->id);
-        ptr = ptr->next;
-    }
+pthread_node* pop(){
+    push(currentN);
+    pthread_node * next = head;
+    head = head->next;
+    return next;
 }
 
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
 
-
+    if (schedulerC == NULL){
+        makeScheduler();
+    }
     thread_count++;
     printf("creating thread %d\n", thread_count);
     
-    tcb* thread_new = (tcb*) malloc(sizeof(tcb));
+    tcb* thread_new = (tcb*) malloc(sizeof(tcb)); // data
     
 
     thread_new->id = thread_count;
@@ -70,18 +72,19 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
     
     // Thread Context, make pointer to addess of tcb context
 
-    thread_new->context = (ucontext_t*) malloc(sizeof(ucontext_t));
+    thread_new->context = (ucontext_t*) malloc(sizeof(ucontext_t)); // context
 
     getcontext(thread_new->context);
     
-    thread_new->context->uc_stack.ss_sp = malloc(STACKSIZE);
+    thread_new->context->uc_stack.ss_sp = malloc(STACKSIZE); // stack
     thread_new->context->uc_stack.ss_size = STACKSIZE;
-    thread_new->context->uc_link = NULL;    
+    thread_new->context->uc_link = schedulerC;    
 
     makecontext( thread_new->context, (void (*)()) function, 1, arg);
     
-    push(thread_new);
+    push(newNode(thread_new));
     *thread = thread_new->id;
+    currentN = pop();
     return 0;
 };
 
@@ -91,17 +94,20 @@ int mypthread_yield() {
 	// change thread state from Running to Ready
 	// save context of this thread to its thread control block
 	// wwitch from thread context to scheduler context
-
+    swapcontext(currentN->data->context, schedulerC);
 	// YOUR CODE HERE
-	return 0;
+    return 0;
 };
 
 /* terminate a thread */
 void mypthread_exit(void *value_ptr) {
 	// Deallocated any dynamic memory created when starting this thread
 
-    printf("exiting thread");
-    free(value_ptr);
+
+    //    setcontext(schedulerC);
+    printf("exiting?");
+
+    
 };
 
 
@@ -110,8 +116,9 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
 
 	// wait for a specific thread to terminate
 	// de-allocate any dynamic memory created by the joining thread
-
-	// YOUR CODE HERE
+    //dealloc node, but
+    printf("trying to join\n");
+    setcontext(currentN->data->context);
     return 0;
 };
 
@@ -153,22 +160,37 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 	return 0;
 };
 
-/* scheduler */
+/* Preemptive SJF (STCF) scheduling algorithm */
+static void sched_stcf() {
+	// Your own implementation of STCF
+	// (feel free to modify arguments and return types)
+    printf("scheduling");
+
+
+    setcontext(currentN->data->context);
+    
+}
+
+
 static void schedule() {
 	// Every time when timer interrup happens, your thread library
 	// should be contexted switched from thread context to this
 	// schedule function
 
-	// YOUR CODE HERE
+    sched_stcf();
 
 }
 
-/* Preemptive SJF (STCF) scheduling algorithm */
-static void sched_stcf() {
-	// Your own implementation of STCF
-	// (feel free to modify arguments and return types)
 
-	// YOUR CODE HERE
+void makeScheduler(){
+    schedulerC = (ucontext_t*) malloc(sizeof(ucontext_t));
+
+    getcontext(schedulerC);
+    schedulerC->uc_stack.ss_sp = malloc(STACKSIZE);
+    schedulerC->uc_stack.ss_size = STACKSIZE;
+    printf("shceduling\n");
+    makecontext(schedulerC, &schedule, 0);
+    
 }
 
 

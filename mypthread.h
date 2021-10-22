@@ -1,3 +1,5 @@
+
+
 // File:	mypthread_t.h
 
 // List all group member's name:
@@ -11,7 +13,8 @@
 #define _XOPEN_SOURCE
 
 /* To use Linux pthread Library in Benchmark, you have to comment the USE_MYTHREAD macro */
-#define USE_MYTHREAD 1
+
+
 
 /* include lib header files that you need here: */
 #include <unistd.h>
@@ -98,6 +101,10 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex);
 /* destroy the mutex */
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex);
 
+
+void makeScheduler();
+
+#define USE_MYTHREAD 1
 #ifdef USE_MYTHREAD
 #define pthread_t mypthread_t
 #define pthread_mutex_t mypthread_mutex_t
