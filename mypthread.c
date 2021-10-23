@@ -14,7 +14,7 @@ int thread_count = 0; // start id at 0, give main thread id 0, other start at 1
 pthread_node * head = NULL; // Queue of all threads
 pthread_node * currentN = NULL; // Currently running thread
 
-ucontext_t * schedulerC = NULL; // context of scheduler thred
+static ucontext_t * schedulerC = NULL; // context of scheduler thred
 static tcb * mainT;
 
 static struct sigaction sa; // action handler
@@ -174,7 +174,7 @@ static void sched_stcf() {
 	// (feel free to modify arguments and return types)
     printf("scheduling algo\n");
     //    sigaction(SIGALRM, &sa, NULL);
-    push(currentN);
+
     currentN = pop();
 
     setcontext(currentN->data->context);
@@ -191,10 +191,12 @@ static void schedule() {
 
 }
 
-void switchScheduler(){
+static void switchScheduler(){
 
-    printf("handler");
-    setcontext(schedulerC);
+    printf("handler\n");
+    push(currentN);
+    //    setcontext(schedulerC);
+    swapcontext(currentN->data->context, schedulerC);
 }
 
 void makeScheduler(){
@@ -216,14 +218,14 @@ void makeScheduler(){
     mainT->context = (ucontext_t*) malloc(sizeof(ucontext_t));
     getcontext(mainT->context); //store current thread (main) context into this thread block
     
-    push(newNode(mainT));
+    currentN = newNode(mainT);
 
     
     // initing timer, every 25ms switches back to scheduler to rechoose thread
     sa.sa_handler = switchScheduler;
     sigemptyset(&sa.sa_mask);
     //    sa.sa_flags = sa.sa_flags | SA_NODEFER | SA_RESETHAND;
-    sa.sa_flags = 0;
+    sa.sa_flags = sa.sa_flags | SA_SIGINFO;
     sigaction(SIGALRM, &sa, NULL);
     
     timer.it_value.tv_sec = 0;
