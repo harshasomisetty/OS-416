@@ -11,10 +11,13 @@
 // INITAILIZE ALL YOUR VARIABLES HERE
 int thread_count = 0;
 
-pthread_node * head = NULL;
-pthread_node * currentN = NULL;
+pthread_node * head = NULL; // Queue of all threads
+pthread_node * currentN = NULL; // Currently running thread
 
-ucontext_t * schedulerC = NULL;
+ucontext_t * schedulerC = NULL; // context of scheduler thred
+
+struct sigaction sa; // action handler
+struct itimerval timer; // timer to switch back to scheduler
 
 pthread_node* newNode(tcb* thread){
     pthread_node *node = (struct pthread_node*) malloc(sizeof(pthread_node)); // node or listitem
@@ -181,6 +184,9 @@ static void schedule() {
 
 }
 
+void switchScheduler(){
+    swapcontext(currentN->data->context, schedulerC);
+}
 
 void makeScheduler(){
     schedulerC = (ucontext_t*) malloc(sizeof(ucontext_t));
@@ -190,10 +196,20 @@ void makeScheduler(){
     schedulerC->uc_stack.ss_size = STACKSIZE;
     printf("shceduling\n");
     makecontext(schedulerC, &schedule, 0);
+
+    // initing timer, every 25ms switches back to scheduler to rechoose thread
+    sa.sa_handler = switchScheduler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = sa.sa_flags | SA_NODEFER | SA_RESETHAND;
+    sigaction(SIGALRM, &sa, NULL);
     
+    
+    timer.it_value.tv_sec = 0;
+    timer.it_value.tv_usec = 250000;
+    
+    timer.it_interval.tv_sec = 0;
+    timer.it_interval.tv_usec = 0;
+
+    setitimer(ITIMER_REAL, &timer, NULL);
 }
 
-
-// Feel free to add any other functions you need
-
-// YOUR CODE HERE
