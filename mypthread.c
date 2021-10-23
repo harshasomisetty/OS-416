@@ -9,15 +9,17 @@
 
 
 // INITAILIZE ALL YOUR VARIABLES HERE
-int thread_count = 0;
+int thread_count = 0; // start id at 0, give main thread id 0, other start at 1
 
 pthread_node * head = NULL; // Queue of all threads
 pthread_node * currentN = NULL; // Currently running thread
 
 ucontext_t * schedulerC = NULL; // context of scheduler thred
+static tcb * mainT;
 
-struct sigaction sa; // action handler
-struct itimerval timer; // timer to switch back to scheduler
+static struct sigaction sa; // action handler
+static struct itimerval timer; // timer to switch back to scheduler
+static void schedule();
 
 pthread_node* newNode(tcb* thread){
     pthread_node *node = (struct pthread_node*) malloc(sizeof(pthread_node)); // node or listitem
@@ -52,7 +54,6 @@ void push(pthread_node * node){
 }
 
 pthread_node* pop(){
-    push(currentN);
     pthread_node * next = head;
     head = head->next;
     return next;
@@ -72,10 +73,9 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
 
     thread_new->id = thread_count;
     thread_new->status = SCHEDULED;
-    
-    // Thread Context, make pointer to addess of tcb context
+    thread_new->elapsed = 1;
 
-    thread_new->context = (ucontext_t*) malloc(sizeof(ucontext_t)); // context
+    thread_new->context =  (ucontext_t*) malloc(sizeof(ucontext_t)); // context
 
     getcontext(thread_new->context);
     
@@ -85,9 +85,14 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
 
     makecontext( thread_new->context, (void (*)()) function, 1, arg);
     
-    push(newNode(thread_new));
-    *thread = thread_new->id;
-    currentN = pop();
+    push(newNode(thread_new)); // add thread as a node to queue 
+    *thread = thread_new->id; // returning thread id basically
+    //    currentN = pop();
+
+    //    schedule(); //call schedule and pick new thread
+    setitimer(ITIMER_REAL, &timer, NULL);
+    sleep(1);
+    printf("done with thread %d\n", thread_count);
     return 0;
 };
 
@@ -167,8 +172,10 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 static void sched_stcf() {
 	// Your own implementation of STCF
 	// (feel free to modify arguments and return types)
-    printf("scheduling");
-
+    printf("scheduling algo\n");
+    //    sigaction(SIGALRM, &sa, NULL);
+    push(currentN);
+    currentN = pop();
 
     setcontext(currentN->data->context);
     
@@ -179,13 +186,15 @@ static void schedule() {
 	// Every time when timer interrup happens, your thread library
 	// should be contexted switched from thread context to this
 	// schedule function
-
-    sched_stcf();
+    printf("got into schedule");
+    //    sched_stcf();
 
 }
 
 void switchScheduler(){
-    swapcontext(currentN->data->context, schedulerC);
+
+    printf("handler");
+    setcontext(schedulerC);
 }
 
 void makeScheduler(){
@@ -194,15 +203,28 @@ void makeScheduler(){
     getcontext(schedulerC);
     schedulerC->uc_stack.ss_sp = malloc(STACKSIZE);
     schedulerC->uc_stack.ss_size = STACKSIZE;
-    printf("shceduling\n");
+    printf("making schedule\n");
     makecontext(schedulerC, &schedule, 0);
 
+
+    // add main thread to queue so rest of the main can execute
+
+    mainT = (tcb *) malloc(sizeof(tcb));
+    mainT->id = 0;
+    mainT->status = SCHEDULED;
+    mainT->elapsed = 0;
+    mainT->context = (ucontext_t*) malloc(sizeof(ucontext_t));
+    getcontext(mainT->context); //store current thread (main) context into this thread block
+    
+    push(newNode(mainT));
+
+    
     // initing timer, every 25ms switches back to scheduler to rechoose thread
     sa.sa_handler = switchScheduler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = sa.sa_flags | SA_NODEFER | SA_RESETHAND;
+    //    sa.sa_flags = sa.sa_flags | SA_NODEFER | SA_RESETHAND;
+    sa.sa_flags = 0;
     sigaction(SIGALRM, &sa, NULL);
-    
     
     timer.it_value.tv_sec = 0;
     timer.it_value.tv_usec = 250000;
@@ -210,6 +232,6 @@ void makeScheduler(){
     timer.it_interval.tv_sec = 0;
     timer.it_interval.tv_usec = 0;
 
-    setitimer(ITIMER_REAL, &timer, NULL);
+
 }
 

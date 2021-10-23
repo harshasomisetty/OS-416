@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -6,14 +7,6 @@
 
 
 int thread_num = 10;
-/* void printQueue(){ */
-/*     pthread_node * ptr = head; */
-/*     printf("printing queue\n"); */
-/*     while(ptr != NULL){ */
-/*         printf("thread id %x\n", ptr->data->id); */
-/*         ptr = ptr->next; */
-/*     } */
-/* } */
 
 void *myThreadFun(void *vargp)
 {
@@ -40,18 +33,6 @@ void test1(){
     pthread_join(thread_id, NULL);
 }
 
-void test2(){
-    pthread_t * thread = (pthread_t*)malloc(thread_num*sizeof(pthread_t));
-    
-    for (int i = 0; i < thread_num; i++){
-        pthread_create(&thread[i], NULL, &myThreadFun, NULL);
-    }
-
-
-    for (int i = 0; i < thread_num; ++i){
-        pthread_join(thread[i], NULL);
-    }
-}
 
 /* void exit_test(){ */
 /*     pthread_t thread1, thread2; */
@@ -64,10 +45,34 @@ void test2(){
 /*     printf("done main\n"); */
 /* } */
 
+void printing_thread(int num){
+    for(int i = 0; i < 5; i++){
+        printf("in thread %d, count %d\n", num, i);
+        sleep(1);
+    }
+
+}
+
+void multiple_threads(int thread_num){
+    
+    pthread_t * thread = (pthread_t*)malloc(thread_num*sizeof(pthread_t));
+    
+    for (int i = 0; i < thread_num; i++){
+        pthread_create(&thread[i], NULL, &printing_thread, i);
+    }
+
+
+    /* for (int i = 0; i < thread_num; ++i){ */
+    /*     pthread_join(thread[i], NULL); */
+    /* } */
+
+    sleep(30);
+}
+    
 int main()
 {
-    test1();
-    printf("hi");
+    //    test1();
+    multiple_threads(5);
     //    exit_test();
 
     exit(0);

@@ -1,5 +1,3 @@
-
-
 // File:	mypthread_t.h
 
 // List all group member's name:
@@ -75,7 +73,7 @@ typedef struct mypthread_mutex_t {
 
 
 /* Function Declarations: */
-void printQueue();
+
 /* create a new thread */
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr, void
     *(*function)(void*), void * arg);
