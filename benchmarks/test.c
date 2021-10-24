@@ -77,7 +77,9 @@ void two_threads(){
 
     pthread_create(&thread2, NULL, printing_thread, 2);
     
-    sleep(20);
+    printf("main sleeping\n");
+    sleep(10);
+    printf("main done\n");
 }
 
 

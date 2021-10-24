@@ -15,7 +15,13 @@ static tcb * mainT;
 
 static struct sigaction sa; // action handler
 static struct itimerval timer; // timer to switch back to scheduler
+static struct itimerval deletetimer; // timer to switch back to scheduler
 
+static mypthread_mutex_t * mutex = NULL;
+
+
+
+// predeclaring functions
 static void schedule();
 pthread_node* newNode(tcb* thread);
 pthread_node* pop();
@@ -25,10 +31,16 @@ void push(pthread_node * node);
     do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
 
-
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
+    if (schedulerC == NULL){
+        makeScheduler();
+     //   sleep(.1);
+    }
 
+    setitimer(ITIMER_REAL, &deletetimer, NULL); 
+
+    printf("turned off timer");
     thread_count++;
     printf("creating thread %d\n", thread_count);
     
@@ -49,10 +61,7 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
 
     makecontext( thread_new->context, (void (*)()) function, 1, arg);
 
-    if (schedulerC == NULL){
-        makeScheduler();
-    }
-        
+       
     push(newNode(thread_new)); // add thread as a node to queue 
     *thread = thread_new->id; // returning thread id basically
 
@@ -62,6 +71,7 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
 /* give CPU possession to other user-level threads voluntarily */
 int mypthread_yield() {
     
+    setitimer(ITIMER_REAL, &deletetimer, NULL); 
     swapcontext(currentN->data->context, schedulerC);
 
     return 0;
@@ -71,7 +81,8 @@ int mypthread_yield() {
 void mypthread_exit(void *value_ptr) {
     // Deallocated any dynamic memory created when starting  thread
 
-    //    setcontext(schedulerC);
+    setitimer(ITIMER_REAL, &deletetimer, NULL); 
+    setcontext(schedulerC);
     printf("exiting?");
     
 };
@@ -80,10 +91,8 @@ void mypthread_exit(void *value_ptr) {
 /* Wait for thread termination */
 int mypthread_join(mypthread_t thread, void **value_ptr) {
 
-    // wait for a specific thread to terminate
-    // de-allocate any dynamic memory created by the joining thread
-    printf("trying to join\n");
-    setcontext(currentN->data->context);
+    setitimer(ITIMER_REAL, &deletetimer, NULL); 
+    
     return 0;
 };
 
@@ -94,29 +103,50 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
 /* initialize the mutex lock */
 int mypthread_mutex_init(mypthread_mutex_t *mutex,
                           const pthread_mutexattr_t *mutexattr) {
-	//initialize data structures for this mutex
+
+    mutex->cur_thread = NULL;
+    mutex->b_threads = NULL;
+    mutex->destroyed = 0;
 
 	return 0;
 };
 
 /* aquire the mutex lock */
 int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
-        // use the built-in test-and-set atomic function to test the mutex
-        // if the mutex is acquired successfully, enter the critical section
-        // if acquiring mutex fails, push current thread into block list and //
-        // context switch to the scheduler thread
+    
+    if (mutex->destroyed == 1){
+        printf("cant lock destroyed mutex");
+        exit(0);
+    }
+    if (mutex->cur_thread == currentN){
+        printf("already locked by this thread");
+        exit(0);
+    }
+    if (mutex->cur_thread != NULL){
+        swapcontext(currentN->data->context, schedulerC);
+    }
+    mutex->cur_thread = currentN;
 
-        // YOUR CODE HERE
-        return 0;
+    return 0;
+        
+
 };
 
 /* release the mutex lock */
 int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
-	// Release mutex and make it available again.
-	// Put threads in block list to run queue
-	// so that they could compete for mutex later.
+    if (mutex->destroyed == 1){
+        printf("cant unlock destroyed mutex");
+    }
+    if (mutex->cur_thread != currentN){
+        printf("cannt unlokc mutex lokced by other thread");
+    }
 
-	// YOUR CODE HERE
+    else{
+        mutex->cur_thread = NULL;
+        
+        //while(mutex->b_threads != NULL){
+    }
+
 	return 0;
 };
 
@@ -125,6 +155,17 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 	// Deallocate dynamic memory created in mypthread_mutex_init
 
+    if (mutex->cur_thread != NULL){
+        printf("cannot destroy locked mutex\n");
+        exit(0);
+    }
+    else if (mutex->destroyed == 1){
+        printf("cannot destroy destroyed mutex\n");
+        exit(0);
+    }
+    else{
+        mutex->destroyed = 1;
+    }
 	return 0;
 };
 
@@ -154,11 +195,13 @@ static void schedule() {
 
 static void switchScheduler(int signo, siginfo_t *info, void *context){
 
+    printf("timer");
     if (swapcontext(currentN->data->context, schedulerC) == -1)
         handle_error("Failed Scheduler Context Switch");
 }
 
 void makeScheduler(){
+    printf("making initial scheduler\n");
     schedulerC = (ucontext_t*) malloc(sizeof(ucontext_t));
 
     if(getcontext(schedulerC) == -1)
@@ -189,11 +232,19 @@ void makeScheduler(){
     sigaction(SIGALRM, &sa, NULL);
     
     timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = 2500;
+    timer.it_value.tv_usec = 1000;
     timer.it_interval.tv_sec = 0;
     timer.it_interval.tv_usec = 0;
 
+
+    deletetimer.it_value.tv_sec = 0;
+    deletetimer.it_value.tv_usec = 0;
+    deletetimer.it_interval.tv_sec = 0;
+    deletetimer.it_interval.tv_usec = 0;
+
     setitimer(ITIMER_REAL, &timer, NULL);
+    //sleep(.1);
+
 }
 
 
@@ -244,8 +295,8 @@ void push(pthread_node * node){
             }
         
             if (ptr == head) { // insert node at head of queue
-                node->next = ptr->next;
-                ptr->next = node;
+                node->next = head;
+                head->next = node;
             }else{
                 node->next = ptr->next;
                 ptr->next = node;

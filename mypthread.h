@@ -68,9 +68,9 @@ typedef struct pthread_node {
 
 /* mutex struct definition */
 typedef struct mypthread_mutex_t {
-	/* add something here */
-
-	// YOUR CODE HERE
+    pthread_node * cur_thread;
+    pthread_node * b_threads;
+    int destroyed;
 } mypthread_mutex_t;
 
 /* define your data structures here: */
