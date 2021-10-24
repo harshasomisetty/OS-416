@@ -7,8 +7,10 @@
 
 int thread_count = 0; // start id at 0,  main thread id 0, other at 1
 
-static pthread_node * head = NULL; // Queue of all threads
+static pthread_node * t_queue = NULL; // Queue of all threads
+static pthread_node * t_finished = NULL;
 pthread_node * currentN = NULL; // Currently running thread
+static int lastAction = 0;
 
 static ucontext_t * schedulerC = NULL; // context of scheduler thred
 static tcb * mainT;
@@ -20,22 +22,22 @@ static struct itimerval deletetimer; // timer to switch back to scheduler
 static mypthread_mutex_t * mutex = NULL;
 
 
-
 // predeclaring functions
 static void schedule();
 pthread_node* newNode(tcb* thread);
-pthread_node* pop();
+pthread_node* search();
+pthread_node* pop(int tid);
+void print_queue();
 void push(pthread_node * node);
+pthread_node* search_finished(mypthread_t id);
 
 #define handle_error(msg) \
     do { perror(msg); exit(EXIT_FAILURE); } while (0)
-
 
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
     if (schedulerC == NULL){
         makeScheduler();
-     //   sleep(.1);
     }
 
     thread_count++;
@@ -45,7 +47,7 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
     
 
     thread_new->id = thread_count;
-    thread_new->status = SCHEDULED;
+    thread_new->status = READY;
     thread_new->elapsed = 1;
 
     thread_new->context =  (ucontext_t*) malloc(sizeof(ucontext_t)); // context
@@ -79,9 +81,21 @@ void mypthread_exit(void *value_ptr) {
     // Deallocated any dynamic memory created when starting  thread
 
     setitimer(ITIMER_REAL, &deletetimer, NULL); 
-    setcontext(schedulerC);
-    printf("exiting?");
+    currentN->data->status = FINISHED;
+
+    if (value_ptr){
+        currentN->data->value_ptr = value_ptr;
+    }
+
     
+    //add to finsihed queue
+    pthread_node * exited = currentN;
+    exited->next = t_finished;
+    t_finished = exited;
+//    currentN = (pthread_node *) NULL;
+
+    swapcontext(exited->data->context, schedulerC);
+  
 };
 
 
@@ -89,17 +103,26 @@ void mypthread_exit(void *value_ptr) {
 int mypthread_join(mypthread_t thread, void **value_ptr) {
 
     setitimer(ITIMER_REAL, &deletetimer, NULL); 
-    
-    return 0;
+    printf("in join func\n");
+    pthread_node * checking = search_finished(thread);
+        
+
+    if (!checking){
+        currentN->data->elapsed = currentN->data->elapsed + 2;
+        mypthread_yield();
+    }else{
+        *value_ptr = checking->data->value_ptr;
+        //clean this
+    }
+
+        return 0;
 };
-
-
-
 
 
 /* initialize the mutex lock */
 int mypthread_mutex_init(mypthread_mutex_t *mutex,
                           const pthread_mutexattr_t *mutexattr) {
+
 
     mutex->cur_thread = NULL;
     mutex->b_threads = NULL;
@@ -167,39 +190,44 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 };
 
 
-
-/* Preemptive SJF (STCF) scheduling algorithm */
-static void sched_stcf() {
-    currentN->data->elapsed++; //increment time elapsed
-    
-    if (currentN->data->id == 0){
-        currentN->data->elapsed = 20;
-    }
+void print_queue(){
     int count = 0;
-    pthread_node * ptr = head;
+    pthread_node * ptr = t_queue;
     printf("nodes: (%d %d), " ,currentN->data->id, currentN->data->elapsed);
     while (ptr){
         count++;
         printf("(%d %d), ", ptr->data->id, ptr->data->elapsed);
         ptr = ptr->next;
     }
-    printf("\nnum of nodes, %d\n", count);
+    printf(". Length: %d\n", count);
+}
 
+/* Preemptive SJF (STCF) scheduling algorithm */
+static void sched_stcf() {
 
-    printf("thread %d has elapsed %d\n", currentN->data->id, currentN->data->elapsed);
-
-    //printf("current: %x\n", currentN);
-    push(currentN); // if ended, need to exit
-    //printf("head: %p\n", head);
-    currentN = pop(); // gets the next best thread to execute
-
-    ptr = head;
-    printf("after: (%d %d), " ,currentN->data->id, currentN->data->elapsed);
-    while (ptr){
-        printf("(%d %d), ", ptr->data->id, ptr->data->elapsed);
-        ptr = ptr->next;
+    currentN->data->elapsed++; //increment time elapsed
+    
+    /*if (currentN->data->id == 0){
+        currentN->data->elapsed = 20;
+    }*/
+    
+    pthread_node * first = search(1);
+    if (first){
+        //printf("first: %d\n", first->data->id);
     }
- 
+    // printf("thread %d has elapsed %d\n", currentN->data->id, currentN->data->elapsed);
+
+    //print_queue(); // printing queue before selecting new
+
+    if (currentN->data->status != FINISHED){
+
+        push(currentN); // if ended, need to exit
+    }
+    currentN = pop(-1); // gets the next best thread to execute
+
+    // printf("after pushing");
+    // print_queue(); // printing queue after selecting new
+
     setitimer(ITIMER_REAL, &timer, NULL);    
     setcontext(currentN->data->context);
     
@@ -208,7 +236,7 @@ static void sched_stcf() {
 static void schedule() {
     // context switch here every timer interrupt
 
-    printf("got into schedulerrrrr \n");
+    // printf("in scheduler \n");
     sched_stcf();
 
 }
@@ -220,7 +248,7 @@ static void switchScheduler(int signo, siginfo_t *info, void *context){
 }
 
 void makeScheduler(){
-    printf("making initial scheduler\n");
+    // printf("making initial scheduler\n");
     schedulerC = (ucontext_t*) malloc(sizeof(ucontext_t));
 
     if(getcontext(schedulerC) == -1)
@@ -235,7 +263,7 @@ void makeScheduler(){
 
     mainT = (tcb *) malloc(sizeof(tcb));
     mainT->id = 0;
-    mainT->status = SCHEDULED;
+    mainT->status = READY;
     mainT->elapsed = 0;
     mainT->context = (ucontext_t*) malloc(sizeof(ucontext_t));
     getcontext(mainT->context); //store current thread (main) context into this thread block
@@ -301,19 +329,18 @@ pthread_node* newNode(tcb* thread){
 
 // circular queue of thread
 void push(pthread_node * node){
-    printf("pushing\n");
     if (node != NULL){
-        pthread_node * ptr = head;
+        pthread_node * ptr = t_queue;
     
-        if (head == NULL){
-            head = node;
+        if (t_queue == NULL){
+            t_queue = node;
         } else{
 
             while(ptr->next != NULL && node->data->elapsed > ptr->next->data->elapsed ){
                 ptr = ptr->next;
             }
         
-            if (ptr == head) { // insert node at head of queue
+            if (ptr == t_queue) { // insert node at t_queue of queue
                 node->next = ptr->next;
                 ptr->next = node;
             }else{
@@ -324,8 +351,54 @@ void push(pthread_node * node){
     }
 }
 
-pthread_node* pop(){
-    pthread_node * next = head;
-    head = head->next;
-    return next;
+pthread_node* pop(int tid){
+    if (tid == -1){
+        pthread_node * next = t_queue;
+        t_queue = t_queue->next;
+        return next;
+    }else{
+        pthread_node * ptr = t_queue;
+        while (ptr != NULL
+                && ptr->next != NULL
+                && ptr->next->data->id != tid
+                ) {
+            ptr=ptr->next;
+        }
+        pthread_node * target = ptr->next;
+        ptr->next = ptr->next->next;
+        return target;
+    }
+       
 }
+
+pthread_node* search(int id){
+
+    pthread_node * ptr = t_queue;
+    if (ptr != NULL
+            && ptr->data->id != id
+            ) {
+        ptr=ptr->next;
+    }
+    return ptr;
+}
+
+pthread_node* search_finished(mypthread_t id){
+
+    pthread_node * ptr = t_finished;
+    if (ptr == NULL){
+        return NULL;
+    }
+    if (ptr != NULL
+            && ptr->data->id != id
+            ) {
+        ptr=ptr->next;
+    }
+    if (ptr->data->id == id){
+        return ptr;
+    }else{
+        return NULL;
+    }
+}
+
+
+

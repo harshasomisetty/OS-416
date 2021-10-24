@@ -5,7 +5,6 @@
 #include "../mypthread.h"
 
 
-int thread_num = 10;
 
 void *myThreadFun(void *vargp)
 {
@@ -45,12 +44,28 @@ void test1(){
 /* } */
 
 void printing_thread(int num){
-    for(int i = 0; i < 5; i++){
+    for(int i = 0; i < 3*num; i++){
         printf("in thread %d, count %d\n", num, i);
-        sleep(1);
+        //printf("second %d\n", num);
     }
+    pthread_exit(NULL);
 
 }
+void two_threads(){
+    
+    pthread_t thread1, thread2;
+    pthread_create(&thread1, NULL, printing_thread, 1);
+
+    printf("thread 1\n");
+
+    pthread_join(thread1, NULL);
+    
+    pthread_create(&thread2, NULL, printing_thread, 1);
+    printf("main sleeping\n");
+//    sleep(13);
+    printf("main done\n");
+}
+
 
 void multiple_threads(int thread_num){
     
@@ -61,25 +76,11 @@ void multiple_threads(int thread_num){
     }
 
 
-    /* for (int i = 0; i < thread_num; ++i){ */
-    /*     pthread_join(thread[i], NULL); */
-    /* } */
+     for (int i = 0; i < thread_num; ++i){ 
+         printf("joining %d\n", i);
+         pthread_join(thread[i], NULL); 
+     } 
 
-    sleep(30);
-}
-
-void two_threads(){
-    
-    pthread_t thread1, thread2;
-    pthread_create(&thread1, NULL, printing_thread, 1);
-
-    printf("thread 1\n");
-
-    pthread_create(&thread2, NULL, printing_thread, 2);
-    
-    printf("main sleeping\n");
-    sleep(10);
-    printf("main done\n");
 }
 
 
@@ -88,8 +89,8 @@ int main()
     //    test1();
     //    exit_test();
     
-    //multiple_threads(5);
-    two_threads();
+    multiple_threads(3);
+    //two_threads();
     exit(0);
 }
 

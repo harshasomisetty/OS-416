@@ -34,9 +34,10 @@ typedef unsigned long           ulong;
 typedef uint mypthread_t;
 
 #define READY 0           // e.g., thread->status = READY;
-#define SCHEDULED 1
-#define BLOCKED 2
+#define BLOCKED 1
+#define FINISHED 2
 
+#define EXITEDTHREAD 3
 #define STACKSIZE (1<<15)
 
 typedef struct threadControlBlock {
@@ -56,7 +57,7 @@ typedef struct threadControlBlock {
 	// thread priority is based on elapsed time
         int elapsed;
         
-	// And more ...
+        void * value_ptr;
 
 } tcb;
 
