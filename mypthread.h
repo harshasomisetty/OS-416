@@ -23,6 +23,8 @@
 #include <ucontext.h>
 #include <sys/time.h>
 #include <signal.h>
+#include <assert.h>
+#include <errno.h>
 
 typedef uint mypthread_t;
 
@@ -31,7 +33,7 @@ typedef uint mypthread_t;
 #define BLOCKED 2
 
 #define STACKSIZE (1<<15)
-    
+
 typedef struct threadControlBlock {
 	/* add important states in a thread control block */
 	// thread Id
