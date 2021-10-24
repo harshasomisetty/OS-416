@@ -7,7 +7,7 @@
 
 int thread_count = 0; // start id at 0,  main thread id 0, other at 1
 
-pthread_node * head = NULL; // Queue of all threads
+static pthread_node * head = NULL; // Queue of all threads
 pthread_node * currentN = NULL; // Currently running thread
 
 static ucontext_t * schedulerC = NULL; // context of scheduler thred
@@ -38,9 +38,6 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
      //   sleep(.1);
     }
 
-    setitimer(ITIMER_REAL, &deletetimer, NULL); 
-
-    printf("turned off timer");
     thread_count++;
     printf("creating thread %d\n", thread_count);
     
@@ -174,12 +171,35 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 /* Preemptive SJF (STCF) scheduling algorithm */
 static void sched_stcf() {
     currentN->data->elapsed++; //increment time elapsed
+    
+    if (currentN->data->id == 0){
+        currentN->data->elapsed = 20;
+    }
+    int count = 0;
+    pthread_node * ptr = head;
+    printf("nodes: (%d %d), " ,currentN->data->id, currentN->data->elapsed);
+    while (ptr){
+        count++;
+        printf("(%d %d), ", ptr->data->id, ptr->data->elapsed);
+        ptr = ptr->next;
+    }
+    printf("\nnum of nodes, %d\n", count);
+
 
     printf("thread %d has elapsed %d\n", currentN->data->id, currentN->data->elapsed);
 
+    //printf("current: %x\n", currentN);
     push(currentN); // if ended, need to exit
+    //printf("head: %p\n", head);
     currentN = pop(); // gets the next best thread to execute
 
+    ptr = head;
+    printf("after: (%d %d), " ,currentN->data->id, currentN->data->elapsed);
+    while (ptr){
+        printf("(%d %d), ", ptr->data->id, ptr->data->elapsed);
+        ptr = ptr->next;
+    }
+ 
     setitimer(ITIMER_REAL, &timer, NULL);    
     setcontext(currentN->data->context);
     
@@ -195,7 +215,6 @@ static void schedule() {
 
 static void switchScheduler(int signo, siginfo_t *info, void *context){
 
-    printf("timer");
     if (swapcontext(currentN->data->context, schedulerC) == -1)
         handle_error("Failed Scheduler Context Switch");
 }
@@ -232,7 +251,7 @@ void makeScheduler(){
     sigaction(SIGALRM, &sa, NULL);
     
     timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = 1000;
+    timer.it_value.tv_usec = 5000;
     timer.it_interval.tv_sec = 0;
     timer.it_interval.tv_usec = 0;
 
@@ -243,8 +262,7 @@ void makeScheduler(){
     deletetimer.it_interval.tv_usec = 0;
 
     setitimer(ITIMER_REAL, &timer, NULL);
-    //sleep(.1);
-
+    sleep(1);
 }
 
 
@@ -283,6 +301,7 @@ pthread_node* newNode(tcb* thread){
 
 // circular queue of thread
 void push(pthread_node * node){
+    printf("pushing\n");
     if (node != NULL){
         pthread_node * ptr = head;
     
@@ -290,13 +309,13 @@ void push(pthread_node * node){
             head = node;
         } else{
 
-            while(ptr->next != NULL && ptr->data->elapsed <= node->data->elapsed){
+            while(ptr->next != NULL && node->data->elapsed > ptr->next->data->elapsed ){
                 ptr = ptr->next;
             }
         
             if (ptr == head) { // insert node at head of queue
-                node->next = head;
-                head->next = node;
+                node->next = ptr->next;
+                ptr->next = node;
             }else{
                 node->next = ptr->next;
                 ptr->next = node;

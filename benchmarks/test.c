@@ -73,7 +73,7 @@ void two_threads(){
     pthread_t thread1, thread2;
     pthread_create(&thread1, NULL, printing_thread, 1);
 
-    printf("thread 2\n");
+    printf("thread 1\n");
 
     pthread_create(&thread2, NULL, printing_thread, 2);
     
