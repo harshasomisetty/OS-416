@@ -56,8 +56,6 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
     push(newNode(thread_new)); // add thread as a node to queue 
     *thread = thread_new->id; // returning thread id basically
 
-    sleep(1);
-    printf("done with thread %d\n", thread_count);
     return 0;
 };
 
@@ -89,14 +87,59 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
     return 0;
 };
 
+
+
+
+
+/* initialize the mutex lock */
+int mypthread_mutex_init(mypthread_mutex_t *mutex,
+                          const pthread_mutexattr_t *mutexattr) {
+	//initialize data structures for this mutex
+
+	return 0;
+};
+
+/* aquire the mutex lock */
+int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
+        // use the built-in test-and-set atomic function to test the mutex
+        // if the mutex is acquired successfully, enter the critical section
+        // if acquiring mutex fails, push current thread into block list and //
+        // context switch to the scheduler thread
+
+        // YOUR CODE HERE
+        return 0;
+};
+
+/* release the mutex lock */
+int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
+	// Release mutex and make it available again.
+	// Put threads in block list to run queue
+	// so that they could compete for mutex later.
+
+	// YOUR CODE HERE
+	return 0;
+};
+
+
+/* destroy the mutex */
+int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
+	// Deallocate dynamic memory created in mypthread_mutex_init
+
+	return 0;
+};
+
+
+
 /* Preemptive SJF (STCF) scheduling algorithm */
 static void sched_stcf() {
-	// Your own implementation of STCF
-    printf("scheduling algo\n");
-    //    sigaction(SIGALRM, &sa, NULL);
+    currentN->data->elapsed++; //increment time elapsed
 
-    currentN = pop();
+    printf("thread %d has elapsed %d\n", currentN->data->id, currentN->data->elapsed);
 
+    push(currentN); // if ended, need to exit
+    currentN = pop(); // gets the next best thread to execute
+
+    setitimer(ITIMER_REAL, &timer, NULL);    
     setcontext(currentN->data->context);
     
 }
@@ -104,49 +147,27 @@ static void sched_stcf() {
 static void schedule() {
     // context switch here every timer interrupt
 
-    printf("got into schedule");
-    //    sched_stcf();
+    printf("got into schedulerrrrr \n");
+    sched_stcf();
 
 }
 
 static void switchScheduler(int signo, siginfo_t *info, void *context){
 
-    //    schedulerC->uc_mcontext = ((ucontext_t*) context)->uc_mcontext;
-    ucontext_t* interrupted = (ucontext_t*) context;
-
-    sigset_t mask;
-    int ret = sigprocmask(0, NULL, &mask);
-    assert(!ret);
-    assert(sigismember(&mask, SIGALRM));
-
-    printf("Handler with interrupt thread state at %p\n",  context);
-  
-
-    schedulerC->uc_mcontext = interrupted->uc_mcontext;
-   
-    //    push(currentN);
-    if ( (
-   //    swapcontext(currentN->data->context, schedulerC);
-
-          swapcontext(currentN->data->context, schedulerC)
-    //       setcontext(schedulerC);
-        ) == -1)
-        handle_error("context");
-    setitimer(ITIMER_REAL, &timer, NULL);    
+    if (swapcontext(currentN->data->context, schedulerC) == -1)
+        handle_error("Failed Scheduler Context Switch");
 }
 
 void makeScheduler(){
     schedulerC = (ucontext_t*) malloc(sizeof(ucontext_t));
 
     if(getcontext(schedulerC) == -1)
-        handle_error("scheduler error");
-    
+        handle_error("Schedule Context Creation Error");
         
     schedulerC->uc_stack.ss_sp = malloc(STACKSIZE);
     schedulerC->uc_stack.ss_size = STACKSIZE;
-    printf("making schedule\n");
-    makecontext(schedulerC, &schedule, 0);
 
+    makecontext(schedulerC, &schedule, 0);
 
     // add main thread to queue so rest of the main can execute
 
@@ -158,7 +179,7 @@ void makeScheduler(){
     getcontext(mainT->context); //store current thread (main) context into this thread block
     
     currentN = newNode(mainT);
-
+    
     // initing timer, every 25ms switches back to scheduler 
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = sa.sa_flags | SA_SIGINFO;
@@ -168,13 +189,11 @@ void makeScheduler(){
     sigaction(SIGALRM, &sa, NULL);
     
     timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = 250000;
-    
+    timer.it_value.tv_usec = 2500;
     timer.it_interval.tv_sec = 0;
     timer.it_interval.tv_usec = 0;
 
     setitimer(ITIMER_REAL, &timer, NULL);
-    
 }
 
 

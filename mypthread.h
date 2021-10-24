@@ -26,6 +26,11 @@
 #include <assert.h>
 #include <errno.h>
 
+typedef unsigned char           unchar;
+typedef unsigned short          ushort;
+typedef unsigned int            uint;
+typedef unsigned long           ulong;
+
 typedef uint mypthread_t;
 
 #define READY 0           // e.g., thread->status = READY;
