@@ -41,7 +41,7 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
     }
 
     thread_count++;
-    printf("creating thread %d\n", thread_count);
+    //printf("creating thread %d\n", thread_count);
     
     tcb* thread_new = (tcb*) malloc(sizeof(tcb)); // data
     
@@ -236,7 +236,7 @@ static void sched_stcf() {
 
     //print_queue(); // printing queue before selecting new
 
-    if (currentN->data->status != FINISHED || currentN->data->status != BLOCKED){
+    if (currentN->data->status == READY){
 
         push(currentN); // if ended, need to exit
     }
