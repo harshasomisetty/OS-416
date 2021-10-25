@@ -41,7 +41,6 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
     }
 
     thread_count++;
-    
     tcb* thread_new = (tcb*) malloc(sizeof(tcb)); // data
     
 
@@ -85,13 +84,11 @@ void mypthread_exit(void *value_ptr) {
     if (value_ptr){
         currentN->data->value_ptr = value_ptr;
     }
-
     
     //add to finsihed queue
     pthread_node * exited = currentN;
     exited->next = t_finished;
     t_finished = exited;
-//    currentN = (pthread_node *) NULL;
 
     swapcontext(exited->data->context, schedulerC);
   
@@ -102,9 +99,7 @@ void mypthread_exit(void *value_ptr) {
 int mypthread_join(mypthread_t thread, void **value_ptr) {
 
     setitimer(ITIMER_REAL, &deletetimer, NULL); 
-    //printf("in join func\n");
     pthread_node * checking = search_finished(thread);
-        
 
     if (!checking){
         currentN->data->elapsed = currentN->data->elapsed + 2;
@@ -205,44 +200,17 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 	return 0;
 };
 
-
-void print_queue(){
-    int count = 0;
-    pthread_node * ptr = t_queue;
-    printf("nodes: (%d %d), " ,currentN->data->id, currentN->data->elapsed);
-    while (ptr){
-        count++;
-        printf("(%d %d), ", ptr->data->id, ptr->data->elapsed);
-        ptr = ptr->next;
-    }
-    printf(". Length: %d\n", count);
-}
-
 /* Preemptive SJF (STCF) scheduling algorithm */
 static void sched_stcf() {
 
     currentN->data->elapsed++; //increment time elapsed
     
-    /*if (currentN->data->id == 0){
-        currentN->data->elapsed = 20;
-    }*/
-    
-    pthread_node * first = search(1);
-    if (first){
-        //printf("first: %d\n", first->data->id);
-    }
-    // printf("thread %d has elapsed %d\n", currentN->data->id, currentN->data->elapsed);
-
-    //print_queue(); // printing queue before selecting new
 
     if (currentN->data->status == READY){
-
         push(currentN); // if ended, need to exit
     }
-    currentN = pop(-1); // gets the next best thread to execute
 
-    // printf("after pushing");
-    // print_queue(); // printing queue after selecting new
+    currentN = pop(-1); // gets the next best thread to execute
 
     setitimer(ITIMER_REAL, &timer, NULL);    
     setcontext(currentN->data->context);
@@ -252,7 +220,6 @@ static void sched_stcf() {
 static void schedule() {
     // context switch here every timer interrupt
 
-    // printf("in scheduler \n");
     sched_stcf();
 
 }
@@ -264,7 +231,6 @@ static void switchScheduler(int signo, siginfo_t *info, void *context){
 }
 
 void makeScheduler(){
-    // printf("making initial scheduler\n");
     schedulerC = (ucontext_t*) malloc(sizeof(ucontext_t));
 
     if(getcontext(schedulerC) == -1)
@@ -308,31 +274,6 @@ void makeScheduler(){
     setitimer(ITIMER_REAL, &timer, NULL);
     sleep(1);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 pthread_node* newNode(tcb* thread){

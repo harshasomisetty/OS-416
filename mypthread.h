@@ -112,7 +112,7 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex);
 
 void makeScheduler();
 
-#define USE_MYTHREAD 1
+//#define USE_MYTHREAD 1
 #ifdef USE_MYTHREAD
 #define pthread_t mypthread_t
 #define pthread_mutex_t mypthread_mutex_t
