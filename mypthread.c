@@ -103,7 +103,7 @@ void mypthread_exit(void *value_ptr) {
 int mypthread_join(mypthread_t thread, void **value_ptr) {
 
     setitimer(ITIMER_REAL, &deletetimer, NULL); 
-    printf("in join func\n");
+    //printf("in join func\n");
     pthread_node * checking = search_finished(thread);
         
 
@@ -111,7 +111,9 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
         currentN->data->elapsed = currentN->data->elapsed + 2;
         mypthread_yield();
     }else{
-        *value_ptr = checking->data->value_ptr;
+        if (checking->data->value_ptr){
+            *value_ptr = checking->data->value_ptr;
+        }
         //clean this
     }
 
@@ -125,7 +127,7 @@ int mypthread_mutex_init(mypthread_mutex_t *mutex,
 
 
     mutex->cur_thread = NULL;
-    mutex->b_threads = NULL;
+    mutex->block = NULL;
     mutex->destroyed = 0;
 
 	return 0;
@@ -134,8 +136,9 @@ int mypthread_mutex_init(mypthread_mutex_t *mutex,
 /* aquire the mutex lock */
 int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
     
+    setitimer(ITIMER_REAL, &deletetimer, NULL); 
     if (mutex->destroyed == 1){
-        printf("cant lock destroyed mutex");
+        printf("cant lock destroyed mutex\n");
         exit(0);
     }
     if (mutex->cur_thread == currentN){
@@ -143,6 +146,10 @@ int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
         exit(0);
     }
     if (mutex->cur_thread != NULL){
+
+        currentN->next = mutex->block;
+        mutex->block = currentN;
+        currentN->data->status = BLOCKED;
         swapcontext(currentN->data->context, schedulerC);
     }
     mutex->cur_thread = currentN;
@@ -154,17 +161,27 @@ int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
 
 /* release the mutex lock */
 int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
+
+    setitimer(ITIMER_REAL, &deletetimer, NULL); 
     if (mutex->destroyed == 1){
         printf("cant unlock destroyed mutex");
     }
     if (mutex->cur_thread != currentN){
-        printf("cannt unlokc mutex lokced by other thread");
+        printf("cannt unlock mutex locked by other thread\n");
     }
 
     else{
+
+            
+        pthread_node * temp = mutex->block;
+        while(temp != NULL){
+            temp->data->status = READY;
+            push(temp);
+            temp = temp->next;
+        }
         mutex->cur_thread = NULL;
-        
-        //while(mutex->b_threads != NULL){
+
+
     }
 
 	return 0;
@@ -219,7 +236,7 @@ static void sched_stcf() {
 
     //print_queue(); // printing queue before selecting new
 
-    if (currentN->data->status != FINISHED){
+    if (currentN->data->status != FINISHED || currentN->data->status != BLOCKED){
 
         push(currentN); // if ended, need to exit
     }
@@ -385,15 +402,16 @@ pthread_node* search(int id){
 pthread_node* search_finished(mypthread_t id){
 
     pthread_node * ptr = t_finished;
+    int tid = (int) id;
     if (ptr == NULL){
         return NULL;
     }
-    if (ptr != NULL
-            && ptr->data->id != id
+    while (ptr != NULL
+            && ptr->data->id != tid
             ) {
         ptr=ptr->next;
     }
-    if (ptr->data->id == id){
+    if (ptr->data->id == tid){
         return ptr;
     }else{
         return NULL;

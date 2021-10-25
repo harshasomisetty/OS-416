@@ -4,5 +4,5 @@ make clean
 make
 cd benchmarks
 make clean
-make test
+make 
 ./test

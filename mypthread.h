@@ -25,6 +25,7 @@
 #include <signal.h>
 #include <assert.h>
 #include <errno.h>
+#include <stdatomic.h>
 
 typedef unsigned char           unchar;
 typedef unsigned short          ushort;
@@ -69,8 +70,8 @@ typedef struct pthread_node {
 
 /* mutex struct definition */
 typedef struct mypthread_mutex_t {
+    pthread_node * block;
     pthread_node * cur_thread;
-    pthread_node * b_threads;
     int destroyed;
 } mypthread_mutex_t;
 

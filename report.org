@@ -1,0 +1,9 @@
+#+TITLE: Project 2 report
+#+AUTHOR: Harsha Somisetty
+#+DATE: October 24, 2021
+#+SETUPFILE: ~/.emacs.d/.latex_standard.org
+* Logic
+* Benchmark
+* Challenges
+* Improvements
+My thread 
