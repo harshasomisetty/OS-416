@@ -41,7 +41,6 @@ int mypthread_create(mypthread_t * thread, pthread_attr_t * attr,
     }
 
     thread_count++;
-    //printf("creating thread %d\n", thread_count);
     
     tcb* thread_new = (tcb*) malloc(sizeof(tcb)); // data
     

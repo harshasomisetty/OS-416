@@ -3,8 +3,8 @@
 #include <pthread.h>
 #include "../mypthread.h"
 
-#define DEFAULT_THREAD_NUM 4
-#define C_SIZE 100000
+#define DEFAULT_THREAD_NUM 100
+#define C_SIZE 10000
 #define R_SIZE 10000
 
 pthread_mutex_t   mutex;
@@ -46,6 +46,7 @@ void verify() {
 
 	for (j = 0; j < R_SIZE; j += 1) {
 		for (i = 0; i < C_SIZE; ++i) {
+            //printf("%d * %d = %d\n", a[j][i], i, a[j][i]*i);
 			pSum[j] += a[j][i] * i;
 		}
 	}
