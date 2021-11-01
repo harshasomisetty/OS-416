@@ -52,9 +52,6 @@ typedef struct threadControlBlock {
 	// thread context
         ucontext_t * context;
         
-	// thread stack, in context
-
-        
 	// thread priority is based on elapsed time
         int elapsed;
         
@@ -74,11 +71,6 @@ typedef struct mypthread_mutex_t {
     pthread_node * cur_thread;
     int destroyed;
 } mypthread_mutex_t;
-
-/* define your data structures here: */
-// Feel free to add your own auxiliary data structures (linked list or queue etc...)
-
-// YOUR CODE HERE
 
 
 /* Function Declarations: */

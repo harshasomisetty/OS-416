@@ -3,18 +3,18 @@
 #+DATE: October 24, 2021
 #+SETUPFILE: ~/.emacs.d/.latex_standard.org
 * Logic
-to begin, we initialize various variables, included a running thread queue, a queue of finished threads, the current executing thread, and pointers for timers, scheduler, and the main thread
+To begin, we initialize various variables, included a running thread queue, a queue of finished threads, the current executing thread, and pointers for timers, scheduler, and the main thread
 ** Thread Functions
 *** Create
 On the first thread creation, we initialize contexts for the main thread and scheduler (the latter contains the rest of the instructions to execute, the former manages all the created threads)
 
 In the rest of the calls to pthread_create, we first increment the thread counter to serve as an id, keep track of the thread execution status and how many times it executed, and initialize it's own stack and context. Get context specifically initializes the struct containing the context variables, and then make context changes the struct to point to the desired function to execute
-*** yield
-here, the context of the calling thread is simply paused, and control is given back to the scheduler to choose a different thread to execute
-*** exit
-here, we mark the status of the thread as finished so the thread is not reentered into the running queue, and additinally, we add the finsihed thread ot the finished queue
+*** Yield
+Here, the context of the calling thread is simply paused, and control is given back to the scheduler to choose a different thread to execute
+*** Exit
+Here, we mark the status of the thread as finished so the thread is not reentered into the running queue, and additinally, we add the finsihed thread ot the finished queue
 *** Join
-here, we first check if the thread to be joined is already executed (in the finished queue). if it is, then we store the result if any and continue. if not, we yield to another thread, and wait until the thread to be finsihed is exited
+Here, we first check if the thread to be joined is already executed (in the finished queue). if it is, then we store the result if any and continue. if not, we yield to another thread, and wait until the thread to be finsihed is exited
 ** Mutexes
 We first initialize the mutext, which keeps track of the current holding thread, and a list of all threads which requested that mutex.
 
@@ -25,7 +25,7 @@ Finally, when the mutex is released, we restore all the blocked threads to the s
 
 For the scheduler, we have a priority queue that is a linked list of threads, where the nodes contain threads, and are organized by increasing elapsed time. Then, when the scheduler wants to decide on the next thread, it pops the head and sets that as the Current executing thread. to enqueue a thread back, it iterates through the linked list, and inserts the thread in the proper spot
 * Benchmark
-(times in microseconds)
+(Times in microseconds)
 ** Vector Multiply
 | threads | My Pthread | Default |
 |---------+------------+---------|

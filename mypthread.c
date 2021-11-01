@@ -23,7 +23,7 @@ static mypthread_mutex_t * mutex = NULL;
 
 
 // predeclaring functions
-static void schedule();
+static void schedule(); 
 pthread_node* newNode(tcb* thread);
 pthread_node* search();
 pthread_node* pop(int tid);
