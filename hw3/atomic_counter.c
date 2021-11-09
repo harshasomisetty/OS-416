@@ -6,7 +6,7 @@
 #define UNLOCKED 0
 #define LOCKED 1
 
-#define COUNTER_VALUE (1UL << 24)
+#define COUNTER_VALUE (1UL << 9)
 
 int counter = 0;
 int lock = UNLOCKED;
@@ -18,9 +18,11 @@ int test_and_set(int* lock_ptr){
 }
 
 void* critical_section(void* arg){
-    while(test_and_set(&lock) == 1);
-    counter = counter + 1;
-    lock = UNLOCKED;
+    for (int i = 0; i < COUNTER_VALUE; i++){
+        while(test_and_set(&lock) == 1);
+        counter = counter + 1;
+        lock = UNLOCKED;
+    }
 }
 
 int main(int argc, char** argv) {
@@ -51,7 +53,6 @@ int main(int argc, char** argv) {
     printf("The value of the counter should be: %ld\n", threadCount * COUNTER_VALUE);
     printf("The value of the counter is: %d\n", counter);
     
-    pthread_mutex_destroy(&lock);
     free(threads);
     return 0;
 
