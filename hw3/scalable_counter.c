@@ -6,7 +6,7 @@
 #define COUNTER_VALUE (1UL << 24)
 #define THRESH 50
 
-int globalCounter = 0;
+long int globalCounter = 0;
 pthread_mutex_t mut;
 
 void* counterFunction(void* arg) {
@@ -14,15 +14,11 @@ void* counterFunction(void* arg) {
 	for (i = 0; i < COUNTER_VALUE; i++) {
 		counter++;
 		if (counter > THRESH) {
-			pthread_mutex_lock(&mut);
-			globalCounter += counter;
+			__sync_add_and_fetch(&globalCounter, counter);
 			counter = 0;
-			pthread_mutex_unlock(&mut);
 		}
 	}
-	pthread_mutex_lock(&mut);
-	globalCounter += counter;
-	pthread_mutex_unlock(&mut);
+	__sync_add_and_fetch(&globalCounter, counter);
 }
 
 int main(int argc, char** argv) {
@@ -54,7 +50,7 @@ int main(int argc, char** argv) {
 		(end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000
 	);
 	printf("The value of the counter should be: %ld\n", supposedAnswer);
-	printf("The value of the counter is: %d\n", globalCounter);
+	printf("The value of the counter is: %ld\n", globalCounter);
 	printf("The difference is %ld\n", supposedAnswer - globalCounter);
 
 	pthread_mutex_destroy(&mut);
