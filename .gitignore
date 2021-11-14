@@ -8,3 +8,4 @@
 *.a
 !benchmarks/t
 *#*
+*.DS_Store*
