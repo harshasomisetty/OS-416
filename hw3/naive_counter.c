@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
 		printf("Error: empty thread count parameter\n");
 		abort();
 	}
-
+        
 	int threadCount = atoi(argv[1]), i = 0;
 	pthread_t* threads = (pthread_t*) malloc(threadCount * sizeof(pthread_t));
 

@@ -9,19 +9,10 @@
 #define COUNTER_VALUE (1UL << 9)
 
 int counter = 0;
-int lock = UNLOCKED;
-
-int test_and_set(int* lock_ptr){
-    int prev = *lock_ptr;
-    *lock_ptr = LOCKED;
-    return prev;
-}
 
 void* critical_section(void* arg){
     for (int i = 0; i < COUNTER_VALUE; i++){
-        while(test_and_set(&lock) == 1);
-        counter = counter + 1;
-        lock = UNLOCKED;
+        __sync_add_and_fetch(&counter, 1);
     }
 }
 
