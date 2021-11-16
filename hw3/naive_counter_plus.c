@@ -38,15 +38,22 @@ int main(int argc, char** argv) {
         pthread_join(threads[i], NULL);
     
     clock_gettime(CLOCK_REALTIME, &end);
-    
-    printf(
-           "Counter finish in: %lu ms\n",
-           (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000
-           );
-    printf("The value of the counter should be: %ld\n", threadCount * COUNTER_VALUE);
-    printf("The value of the counter is: %d\n", counter);
+    free(threads);
     
     pthread_mutex_destroy(&lock);
-    free(threads);
+    
+    long total_time = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000;
+    printf(
+           "Counter finish in: %lu ms\n", 
+           total_time
+           );
+    
+    printf("The value of the counter should be: %ld\n", threadCount * COUNTER_VALUE);
+    printf("The value of the counter is: %d\n", counter);
+        
+    FILE *fp = fopen("./results.org", "a");
+    fprintf(fp, "| %d | %lu |\n", atoi(argv[1]), total_time);
+    fclose(fp);
+
     return 0;
 }

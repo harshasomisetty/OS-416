@@ -1,0 +1,56 @@
+#+PLOT: title:"naive_counter" ind:1 type:2d file:"./img/naive_counter.png"  set:"xlabel 'threads'" set:"ylabel 'runtime'" 
+| threadCount | runTime |
+| 1 | 29 |
+| 2 | 93 |
+| 4 | 224 |
+| 8 | 378 |
+| 16 | 753 |
+| 32 | 1386 |
+| 64 | 2826 |
+| 128 | 6920 |
+
+[[./img/naive_counter.png]]
+
+
+#+PLOT: title:"naive_counter_plus" ind:1 type:2d file:"./img/naive_counter_plus.png"  set:"xlabel 'threads'" set:"ylabel 'runtime'" 
+| threadCount | runTime |
+| 1 | 310 |
+| 2 | 1490 |
+| 4 | 3121 |
+| 8 | 8077 |
+| 16 | 17213 |
+| 32 | 46182 |
+| 64 | 99748 |
+| 128 | 187970 |
+
+[[./img/naive_counter_plus.png]]
+
+
+#+PLOT: title:"atomic_counter" ind:1 type:2d file:"./img/atomic_counter.png"  set:"xlabel 'threads'" set:"ylabel 'runtime'" 
+| threadCount | runTime |
+| 1 | 121 |
+| 2 | 882 |
+| 4 | 1665 |
+| 8 | 3683 |
+| 16 | 6717 |
+| 32 | 13371 |
+| 64 | 25573 |
+| 128 | 41070 |
+
+[[./img/atomic_counter.png]]
+
+
+#+PLOT: title:"scalable_counter" ind:1 type:2d file:"./img/scalable_counter.png"  set:"xlabel 'threads'" set:"ylabel 'runtime'" 
+| threadCount | runTime |
+| 1 | 33 |
+| 2 | 36 |
+| 4 | 32 |
+| 8 | 47 |
+| 16 | 81 |
+| 32 | 164 |
+| 64 | 319 |
+| 128 | 627 |
+
+[[./img/scalable_counter.png]]
+
+

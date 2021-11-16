@@ -31,17 +31,22 @@ int main(int argc, char** argv) {
 	
 	for (i = 0; i < threadCount; i++)
 		pthread_join(threads[i], NULL);
-
+        
+	free(threads);
 	clock_gettime(CLOCK_REALTIME, &end);
-    
+
+        long total_time = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000;
 	printf(
 		"Counter finish in: %lu ms\n", 
-		(end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000
+                total_time
 	);
 	printf("The value of the counter should be: %ld\n", threadCount * COUNTER_VALUE);
 	printf("The value of the counter is: %d\n", counter);
+        
+        FILE *fp = fopen("./results.org", "a");
+        fprintf(fp, "| %d | %lu |\n", atoi(argv[1]), total_time);
+        fclose(fp);
 
-	free(threads);
 	return 0;
 }
 
