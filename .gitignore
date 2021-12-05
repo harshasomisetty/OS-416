@@ -10,3 +10,10 @@
 *#*
 *.DS_Store*
 /hw4/TAGS
+*.projectile
+*DISKFILE*
+/hw4/benchmark/bitmap_check
+/hw4/benchmark/simple_test
+/hw4/benchmark/test_case
+/hw4/setup
+/hw4/tfs

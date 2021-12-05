@@ -1,1 +1,37 @@
-cg
+
+* Disk Allocation Calculation
+x : number of inode blocks
+y: number of data blocks
+
+
+x = y/16 since 
+x + y = 8189
+y/16 + y = 8189
+y = 7707.3
+x = 481.70
+
+
+8189 - 482 = 7707
+
+approx
+
+x = 482
+y = 7707
+
+
+| count | type         |
+|-------+--------------|
+|     1 | super        |
+|     1 | inode bitmap |
+|     1 | data bitmap  |
+|   482 | inode blocks |
+|  7707 | data blocks  |
+|-------+--------------|
+|  8192 |              |
+#+TBLFM: @>$1=vsum(@2..@-1)
+
+
+
+* Scripts explanation
+run_test.sh compiles the tests in the benchmarks folder, can customize which test to auto run
+disk_setup.sh compiles and runs the disk_setup.c code script to test writing to the disk file
