@@ -10,6 +10,16 @@
  */
 
 #define FUSE_USE_VERSION 26
+#define INODE_BITMAP_SIZE 1
+#define DATA_BITMAP_SIZE 1
+#define INODE_BLOCK_RESERVE 482
+#define INODE_BLOCK_RESERVE_INDEX 3
+#define INODE_SIZE 256
+#define DATA_BLOCK_RESERVE 7707
+#define DATA_BLOCK_RESERVE_INDEX 485
+#define SUPERBLOCK_INDEX 0
+#define INODE_MAP_INDEX 1
+#define DATA_MAP_INDEX 2
 
 #include <fuse.h>
 #include <stdlib.h>
@@ -29,19 +39,27 @@
 char diskfile_path[PATH_MAX];
 
 // Declare your in-memory data structures here
-
+bitmap_t inodeBitmap, dataBitmap;
 /* 
  * Get available inode number from bitmap
  */
 int get_avail_ino() {
 
 	// Step 1: Read inode bitmap from disk
+	bio_read(INODE_MAP_INDEX, inodeBitmap);
 	
 	// Step 2: Traverse inode bitmap to find an available slot
+	int i = 0;
+	for (i = 0; i < BLOCK_SIZE * INODE_BITMAP_SIZE; i++) 
+		if (get_bitmap(inodeBitmap, i) == 0) {
+			set_bitmap(inodeBitmap, i);
+			break;
+		}
 
 	// Step 3: Update inode bitmap and write to disk 
-
-	return 0;
+	bio_write(INODE_MAP_INDEX, inodeBitmap);
+	
+	return i;
 }
 
 /* 
@@ -50,12 +68,20 @@ int get_avail_ino() {
 int get_avail_blkno() {
 
 	// Step 1: Read data block bitmap from disk
-	
+	bio_read(DATA_MAP_INDEX, dataBitmap);
+
 	// Step 2: Traverse data block bitmap to find an available slot
-
+	int i = 0;
+	for (i = 0; i < BLOCK_SIZE * DATA_BITMAP_SIZE; i++) 
+		if (get_bitmap(dataBitmap, i) == 0) {
+			set_bitmap(dataBitmap, i);
+			break;
+		}
+	
 	// Step 3: Update data block bitmap and write to disk 
+	bio_write(DATA_MAP_INDEX, dataBitmap);
 
-	return 0;
+	return i;
 }
 
 /* 
@@ -63,11 +89,17 @@ int get_avail_blkno() {
  */
 int readi(uint16_t ino, struct inode *inode) {
 
-  // Step 1: Get the inode's on-disk block number
+	// Step 1: Get the inode's on-disk block number
+	int inode_block_num = (INODE_BLOCK_RESERVE_INDEX * BLOCK_SIZE) + ((ino / 16) * BLOCK_SIZE);
 
-  // Step 2: Get offset of the inode in the inode on-disk block
+	// Step 2: Get offset of the inode in the inode on-disk block
+	int inode_block_num_offset = inode_block_num + ((ino % 16) * INODE_SIZE);
 
-  // Step 3: Read the block from disk and then copy into inode structure
+	// Step 3: Read the block from disk and then copy into inode structure
+	char* inode_block_ptr = malloc(sizeof(BLOCK_SIZE));
+	bio_read(inode_block_num, inode_block_ptr);
+	memcpy(inode, inode_block_ptr + inode_block_num_offset, INODE_SIZE);
+	free(inode_block_ptr);
 
 	return 0;
 }
@@ -75,11 +107,18 @@ int readi(uint16_t ino, struct inode *inode) {
 int writei(uint16_t ino, struct inode *inode) {
 
 	// Step 1: Get the block number where this inode resides on disk
-	
+	int inode_block_num = (INODE_BLOCK_RESERVE_INDEX * BLOCK_SIZE) + ((ino / 16) * BLOCK_SIZE);
+
 	// Step 2: Get the offset in the block where this inode resides on disk
+	int inode_block_num_offset = inode_block_num + ((ino % 16) * INODE_SIZE);
 
 	// Step 3: Write inode to disk 
-
+	char* inode_block_ptr = malloc(sizeof(BLOCK_SIZE));
+	bio_read(inode_block_num, inode_block_ptr);
+	memcpy(inode_block_ptr + inode_block_num_offset, inode, INODE_SIZE);
+	bio_write(inode_block_num, inode_block_ptr);
+	free(inode_block_ptr);
+	
 	return 0;
 }
 
@@ -169,6 +208,8 @@ static void *tfs_init(struct fuse_conn_info *conn) {
   // Step 1b: If disk file is found, just initialize in-memory data structures
   // and read superblock from disk
 
+	inodeBitmap = (bitmap_t) malloc(sizeof(BLOCK_SIZE * INODE_BITMAP_SIZE));
+	dataBitmap = (bitmap_t) malloc(sizeof(BLOCK_SIZE * DATA_BITMAP_SIZE));
 	return NULL;
 }
 
