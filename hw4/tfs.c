@@ -341,16 +341,32 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 	
 	// Step 1: Resolve the path name, walk through path, and finally, find its inode.
 	// Note: You could either implement it in a iterative way or recursive way
-	char* curDir, remPath;
+	char* remPath = NULL, * cur = path;
+	int i = 0;
+	for (i = 0; i < strlen(path); i++) {
+		if (path[i] == '/'){
+			cur = malloc(i);
+			memcpy(cur, path, i);
+			remPath = path + i;
+			break;
+		}
+	}
+
+
 	int finalFlag = 0;
 	struct dirent * entry = (struct dirent *) malloc(sizeof(struct dirent));
-	dir_find(ino, curDir, strlen(curDir), entry);
-	if (finalFlag == 0) {
+	dir_find(ino, cur, strlen(cur), entry);
+	free(cur);
+	if (entry->valid == INVALID) { //nothing found
+		free(entry);
+		return -1;
+	}
+	else if (remPath == NULL) 
 		readi(entry->ino, inode);
-	}
-	else {
-		get_node_by_path(remPath )
-	}
+	else 
+		get_node_by_path(remPath, entry->ino, inode);
+
+	free(entry);
 	return 0;
 }
 
