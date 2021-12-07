@@ -31,6 +31,9 @@
 #define SUPERBLOCK_INDEX 0
 #define INODE_MAP_INDEX 1
 #define DATA_MAP_INDEX 2
+#define DIRECT_PTR_ARR_SIZE 16
+#define VALID 1
+#define INVALID 0
 
 
 struct superblock {
@@ -44,12 +47,12 @@ struct superblock {
 };
 
 struct inode {
-	uint16_t	ino;				/* inode number */
+	uint16_t	ino;				/* inode number, abstract */
 	uint16_t	valid;				/* validity of the inode */
 	uint32_t	size;				/* size of the file */
 	uint32_t	type;				/* type of the file */
 	uint32_t	link;				/* link count */
-	int			direct_ptr[16];		/* direct pointer to data block */
+	int			direct_ptr[16];		/* direct pointer to data block, abstract indexes */
 	int			indirect_ptr[8];	/* indirect pointer to data block */
 	struct stat	vstat;				/* inode stat */
 };
@@ -59,6 +62,16 @@ struct dirent {
 	uint16_t valid;					/* validity of the directory entry */
 	char name[252];					/* name of the directory entry */
 };
+
+int abstractIndex(int realIndex) {
+	return realIndex + 1;
+}
+
+int realIndex(int abstractIndex){
+	return abstractIndex - 1;
+}
+
+
 
 
 /*
