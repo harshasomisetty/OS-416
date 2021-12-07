@@ -62,6 +62,7 @@ void dev_close() {
 //Read a block from the disk
 int bio_read(const int block_num, void *buf) {
     int retstat = 0;
+    
     retstat = pread(diskfile, buf, BLOCK_SIZE, block_num*BLOCK_SIZE);
     if (retstat <= 0) {
 		  memset(buf, 0, BLOCK_SIZE);

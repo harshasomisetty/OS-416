@@ -10,16 +10,6 @@
  */
 
 #define FUSE_USE_VERSION 26
-#define INODE_BITMAP_SIZE 1
-#define DATA_BITMAP_SIZE 1
-#define INODE_BLOCK_RESERVE 482
-#define INODE_BLOCK_RESERVE_INDEX 3
-#define INODE_SIZE 256
-#define DATA_BLOCK_RESERVE 7707
-#define DATA_BLOCK_RESERVE_INDEX 485
-#define SUPERBLOCK_INDEX 0
-#define INODE_MAP_INDEX 1
-#define DATA_MAP_INDEX 2
 
 #include <fuse.h>
 #include <stdlib.h>
@@ -90,13 +80,13 @@ int get_avail_blkno() {
 int readi(uint16_t ino, struct inode *inode) {
 
 	// Step 1: Get the inode's on-disk block number
-	int inode_block_num = (INODE_BLOCK_RESERVE_INDEX * BLOCK_SIZE) + ((ino / 16) * BLOCK_SIZE);
+	int inode_block_num = INODE_BLOCK_RESERVE_INDEX + ino / 16;
 
 	// Step 2: Get offset of the inode in the inode on-disk block
 	int inode_block_num_offset = inode_block_num + ((ino % 16) * INODE_SIZE);
 
 	// Step 3: Read the block from disk and then copy into inode structure
-	char* inode_block_ptr = malloc(sizeof(BLOCK_SIZE));
+	char* inode_block_ptr = malloc(BLOCK_SIZE);
 	bio_read(inode_block_num, inode_block_ptr);
 	memcpy(inode, inode_block_ptr + inode_block_num_offset, INODE_SIZE);
 	free(inode_block_ptr);
@@ -107,13 +97,13 @@ int readi(uint16_t ino, struct inode *inode) {
 int writei(uint16_t ino, struct inode *inode) {
 
 	// Step 1: Get the block number where this inode resides on disk
-	int inode_block_num = (INODE_BLOCK_RESERVE_INDEX * BLOCK_SIZE) + ((ino / 16) * BLOCK_SIZE);
+	int inode_block_num = INODE_BLOCK_RESERVE_INDEX + ino / 16;
 
 	// Step 2: Get the offset in the block where this inode resides on disk
 	int inode_block_num_offset = inode_block_num + ((ino % 16) * INODE_SIZE);
 
 	// Step 3: Write inode to disk 
-	char* inode_block_ptr = malloc(sizeof(BLOCK_SIZE));
+	char* inode_block_ptr = malloc(BLOCK_SIZE);
 	bio_read(inode_block_num, inode_block_ptr);
 	memcpy(inode_block_ptr + inode_block_num_offset, inode, INODE_SIZE);
 	bio_write(inode_block_num, inode_block_ptr);

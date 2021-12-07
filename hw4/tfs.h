@@ -21,6 +21,18 @@
 #define MAX_DNUM 16384
 
 
+#define INODE_BITMAP_SIZE 1
+#define DATA_BITMAP_SIZE 1
+#define INODE_BLOCK_RESERVE 482
+#define INODE_BLOCK_RESERVE_INDEX 3
+#define INODE_SIZE 256
+#define DATA_BLOCK_RESERVE 7707
+#define DATA_BLOCK_RESERVE_INDEX 485
+#define SUPERBLOCK_INDEX 0
+#define INODE_MAP_INDEX 1
+#define DATA_MAP_INDEX 2
+
+
 struct superblock {
 	uint32_t	magic_num;			/* magic number */
 	uint16_t	max_inum;			/* maximum inode number */
