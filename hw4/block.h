@@ -14,6 +14,21 @@
 
 #define BLOCK_SIZE 4096
 
+#define DISKFILE "benchmark/DISKFILE"
+#define BLOCK_SIZE 4096
+#define INODE_BITMAP_SIZE 1
+#define DATA_BITMAP_SIZE 1
+#define INODE_BLOCK_RESERVE 482
+#define INODE_BLOCK_RESERVE_INDEX 3
+#define INODE_SIZE 256
+#define DATA_BLOCK_RESERVE 7707
+#define DATA_BLOCK_RESERVE_INDEX 485
+#define SUPERBLOCK_INDEX 0
+#define INODE_MAP_INDEX 1
+#define DATA_MAP_INDEX 2
+#define MAGIC_NUM 0x5C3A
+
+
 void dev_init(const char* diskfile_path);
 int dev_open(const char* diskfile_path);
 void dev_close();

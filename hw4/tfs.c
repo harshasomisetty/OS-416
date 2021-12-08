@@ -10,6 +10,7 @@
  */
 
 #define FUSE_USE_VERSION 26
+#define _FILE_OFFSET_BITS 64
 
 #include <fuse.h>
 #include <stdlib.h>
@@ -25,6 +26,7 @@
 
 #include "block.h"
 #include "tfs.h"
+#include "global.h"
 
 char diskfile_path[PATH_MAX];
 
@@ -56,7 +58,6 @@ int get_avail_ino() {
  * Get available data block number from bitmap
  */
 int get_avail_blkno() {
-
 	// Step 1: Read data block bitmap from disk
 	bio_read(DATA_MAP_INDEX, dataBitmap);
 
@@ -401,14 +402,14 @@ static struct fuse_operations tfs_ope = {
 };
 
 
-int main(int argc, char *argv[]) {
-	int fuse_stat;
+/* int main(int argc, char *argv[]) { */
+/* 	int fuse_stat; */
 
-	getcwd(diskfile_path, PATH_MAX);
-	strcat(diskfile_path, "/DISKFILE");
+/* 	getcwd(diskfile_path, PATH_MAX); */
+/* 	strcat(diskfile_path, "/DISKFILE"); */
 
-	fuse_stat = fuse_main(argc, argv, &tfs_ope, NULL);
+/* 	fuse_stat = fuse_main(argc, argv, &tfs_ope, NULL); */
 
-	return fuse_stat;
-}
+/* 	return fuse_stat; */
+/* } */
 

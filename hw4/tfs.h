@@ -32,6 +32,7 @@
 #define INODE_MAP_INDEX 1
 #define DATA_MAP_INDEX 2
 
+#include "global.h"
 
 struct superblock {
 	uint32_t	magic_num;			/* magic number */
@@ -64,7 +65,6 @@ struct dirent {
 /*
  * bitmap operations
  */
-typedef unsigned char* bitmap_t;
 
 void set_bitmap(bitmap_t b, int i) {
     b[i / 8] |= 1 << (i & 7);
