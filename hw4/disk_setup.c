@@ -113,18 +113,20 @@ int test_simple_block(){
     for(int i = 0; i<tries; i++){
         testString[16] = i+'0';
         bio_read(DATA_BLOCK_RESERVE_INDEX+i, buf);
-        if (strcmp(testString, buf)){
-            perror("incorrect memory stored");
-            return -1;
-        }
+        printf("testString: %s\n", testString);
+        printf("buf: %s\n", buf);
+        /* if (strcmp(testString, buf) != 0){ */
+        /*     perror("incorrect memory stored"); */
+        /*     return -1; */
+        /* } */
     }
-
-    if (tries == get_avail_blkno(dataBitmap)){
+    int avail_block = get_avail_blkno(dataBitmap);
+    if (tries+1 == avail_block){
         printf("passed test_simple_block\n");
         return 0;
     } else{
         perror("not reading blocks properly\n");
-        return -1;
+        exit(-1);
     }
 
 }
@@ -143,5 +145,7 @@ int main(int argc, char **argv){
     free(super);
     free(inodeBitmap);
     free(dataBitmap);
+
+    printf("\n\n\n*****\n\n\n");
 }
 

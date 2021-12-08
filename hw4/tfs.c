@@ -30,14 +30,6 @@
 
 char diskfile_path[PATH_MAX];
 
-int abstractIndex(int realIndex) {
-	return realIndex + 1;
-}
-
-int realIndex(int abstractIndex){
-	return abstractIndex - 1;
-}
-
 // Declare your in-memory data structures here
 bitmap_t inodeBitmap, dataBitmap;
 
