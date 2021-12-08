@@ -88,7 +88,7 @@ int get_avail_blkno() {
 	
 	// Step 3: Update data block bitmap and write to disk 
 	bio_write(DATA_MAP_INDEX, dataBitmap);
-
+        printf("avail blk nm %d\n",  i);
 	return abstractIndex(i); 
 }
 
@@ -180,28 +180,41 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 
 	int i, j, realBlockIndex;
 	char* block_ptr = malloc(BLOCK_SIZE);
-
+        printf("Searching for: %s\n", fname);
+        
 	for(int i = 0; i < DIRECT_PTR_ARR_SIZE; i++){
 		
 		realBlockIndex = realIndex(dir->direct_ptr[i]);
+                
 		if (dir->direct_ptr[i] == 0 || get_bitmap(dataBitmap, realBlockIndex) == 0)
-			continue;
+                    continue;
+
 
 		bio_read(realBlockIndex, block_ptr);
 		
 		for(j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++){
 			memcpy(dirent, block_ptr + j * sizeof(struct dirent), sizeof(struct dirent));
-			if (dirent->valid != INVALID && strcmp(fname, dirent->name) == 0){
-				free(dir);
-				free(block_ptr);
-				return 0;
-			}
-		}
-	}
 
+			/* if (dirent->valid != INVALID && strcmp(fname, dirent->name) == 0){ */
+			/* 	free(dir); */
+			/* 	free(block_ptr); */
+                        /*         printf("found file: %s\n", fname); */
+			/* 	return 0; */
+			/* } else{ */
+                        /*     printf("File: %s\n", dirent->name); */
+                        /* } */
+                        
+                            printf("File: %s\n", dirent->name);
+                        
+
+		}
+
+                printf("new node\n\n\n");
+	}
+        printf("didn't find file");
 	free(dir);
 	free(block_ptr);
-	return 0;
+	return -1;
 }
 
 

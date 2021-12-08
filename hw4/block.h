@@ -28,6 +28,12 @@
 #define DATA_MAP_INDEX 2
 #define MAGIC_NUM 0x5C3A
 
+#define DIRECT_PTR_ARR_SIZE 16
+#define VALID 1
+#define INVALID 0
+
+#define FILE_TYPE 1
+#define DIR_TYPE 2
 
 void dev_init(const char* diskfile_path);
 int dev_open(const char* diskfile_path);

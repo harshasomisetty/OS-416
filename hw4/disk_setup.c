@@ -36,10 +36,23 @@ struct inode {
     struct stat	vstat;				/* inode stat */
 };
 
+struct dirent {
+	uint16_t ino;					/* inode number of the directory entry */
+	uint16_t valid;					/* validity of the directory entry */
+	char name[252];					/* name of the directory entry */
+};
+
 bitmap_t inodeBitmap, dataBitmap;
 struct superblock * super; 
 
 char buf[BLOCK_SIZE];
+struct dirent * dirent_buf;
+
+int new_inode_num, block, block2;
+char* dir_name;
+struct dirent * testDirent;
+struct inode * node;
+     
 
 /* code to init super block, bitmaps */
 void setup_fs(){
@@ -68,35 +81,6 @@ void setup_fs(){
     bio_write(DATA_MAP_INDEX, dataBitmap);
 
 }
-
-void test_inode_write(){
-
-    int new_inode_num = get_avail_ino();
-    printf("Available inode: %d\n", new_inode_num);
-    struct inode * node = (struct inode *) malloc(sizeof(struct inode));
-    readi(new_inode_num, node);
-    
-    node->ino = new_inode_num;
-    node->valid = 1;
-    node->size = 3;
-    node->type = 0;
-    node->link = 0;
-    node->direct_ptr[0] = get_avail_blkno();
-    node->direct_ptr[1] = get_avail_blkno();
-    node->direct_ptr[2] = get_avail_blkno();
-
-    writei(node->ino, node);
-
-    struct inode * reloadedNode = (struct inode *) malloc(sizeof(struct inode));
-
-    readi(new_inode_num, reloadedNode);
-    printf("Reloaded #: %d\n", reloadedNode->ino);
-    printf("Reloaded valid: %d\n", reloadedNode->valid);
-    printf("Reloaded size: %d\n", reloadedNode->size);
-
-    
-}
-
 int test_simple_block(){
     
     int tries = 2;
@@ -108,6 +92,7 @@ int test_simple_block(){
         bio_write(DATA_BLOCK_RESERVE_INDEX+blk_index, testString );
     }
 
+    printf("reading");
     /* should print buffer read: testing writing i */
     
     for(int i = 0; i<tries; i++){
@@ -131,6 +116,98 @@ int test_simple_block(){
 
 }
 
+void test_inode_write(){
+
+    int new_inode_num = get_avail_ino();
+    printf("Available inode: %d\n", new_inode_num);
+    struct inode * node = (struct inode *) malloc(sizeof(struct inode));
+    readi(new_inode_num, node);
+    
+    node->ino = new_inode_num;
+    node->valid = 1;
+    node->size = 3;
+    node->type = FILE_TYPE;
+    node->link = 0;
+    node->direct_ptr[0] = get_avail_blkno();
+    node->direct_ptr[1] = get_avail_blkno();
+    node->direct_ptr[2] = get_avail_blkno();
+
+    writei(node->ino, node);
+
+    struct inode * reloadedNode = (struct inode *) malloc(sizeof(struct inode));
+
+    readi(new_inode_num, reloadedNode);
+    printf("Reloaded #: %d\n", reloadedNode->ino);
+    printf("Reloaded valid: %d\n", reloadedNode->valid);
+    printf("Reloaded size: %d\n", reloadedNode->size);
+
+    
+}
+
+void setup_fs_files(){
+
+    node = (struct inode *) malloc(sizeof(struct inode));
+    testDirent = (struct dirent *) malloc(sizeof(struct dirent));
+
+    new_inode_num = get_avail_ino();
+    block = get_avail_blkno();
+
+    readi(new_inode_num, node);
+
+    node->ino = new_inode_num;
+    node->valid = 1;
+    node->size = 3; //idk how to calc size
+    node->type = DIR_TYPE;
+    node->link = 0;
+
+
+    node->direct_ptr[0] = block;
+    printf("1 setup block ind %d\n", block);
+
+    writei(node->ino, node);
+
+
+    dir_name = "testDir";
+
+    testDirent->ino = new_inode_num;
+    testDirent->valid = 1;
+    memcpy(testDirent->name, dir_name, 8);
+
+    
+    bio_write(block-1, testDirent);
+
+
+    /* new block of file */
+    block2 = get_avail_blkno();
+    node->direct_ptr[1] = block2;
+    printf("2 setup block ind %d\n", block2);
+    
+    writei(node->ino, node);
+
+    dir_name = "testDir_childdir";
+
+    testDirent->ino = new_inode_num;
+    testDirent->valid = 1;
+    memcpy(testDirent->name, dir_name, 17);
+
+    
+    bio_write(block2-1, testDirent);
+    
+    free(testDirent);
+    free(node);
+    
+}
+int test_dir(){
+
+    setup_fs_files();
+    
+    struct dirent * readDirent = (struct dirent *) malloc(sizeof(struct dirent));
+    
+    printf("first block after setup: %d\n", block);
+    dir_find(block, "testDir", 17, readDirent);
+
+    free(readDirent);
+}
 int main(int argc, char **argv){
     
     inodeBitmap = (bitmap_t) malloc(BLOCK_SIZE * INODE_BITMAP_SIZE);
@@ -140,8 +217,11 @@ int main(int argc, char **argv){
 
     /* test_inode_write(); */
 
-    test_simple_block();
+    /* test_simple_block(); */
 
+    test_dir();
+
+    
     free(super);
     free(inodeBitmap);
     free(dataBitmap);
