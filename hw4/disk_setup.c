@@ -51,8 +51,69 @@ struct dirent * dirent_buf;
 int new_inode_num, block, block2;
 char* dir_name;
 struct dirent * testDirent;
+struct dirent * readDirent;
 struct inode * node;
      
+
+/* this code creates a test file system */
+/* the first found inode is DIR_TYPE, is basically the main */
+/* this node has 2 direct pointers to 2 blocks */
+/* each block has a dirent inside */
+/* both dirent entries have the same inode value, need to edit */
+    
+void setup_fs_files(){
+    printf("in setup_files\n");
+
+    testDirent = (struct dirent *) malloc(sizeof(struct dirent));
+
+    new_inode_num = get_avail_ino();
+    block = get_avail_blkno();
+
+    readi(new_inode_num, node);
+
+    node->ino = new_inode_num;
+    node->valid = 1;
+    node->size = 3; //idk how to calc size
+    node->type = DIR_TYPE;
+    node->link = 0;
+
+
+    node->direct_ptr[0] = block;
+
+    writei(node->ino, node);
+
+
+    dir_name = "testDir";
+
+    testDirent->ino = new_inode_num;
+    testDirent->valid = 1;
+    memcpy(testDirent->name, dir_name, 8);
+
+    
+    bio_write(realIndex(block), testDirent);
+
+    /* new block of file */
+    block2 = realIndex(get_avail_blkno());
+    node->direct_ptr[1] = abstractIndex(block2);
+    /* printf("2 setup block ind %d\n", block2); */
+    
+    print_arr(node->direct_ptr); //remove
+    
+    writei(node->ino, node);
+
+    dir_name = "testDir_childdir";
+
+    testDirent->ino = new_inode_num;
+    testDirent->valid = 1;
+    memcpy(testDirent->name, dir_name, 17);
+
+    
+    bio_write(block2, testDirent);
+    
+    free(testDirent);
+    /* free(node); */
+    
+}
 
 /* code to init super block, bitmaps */
 void setup_fs(){
@@ -79,6 +140,9 @@ void setup_fs(){
     bio_write(SUPERBLOCK_INDEX, super);
     bio_write(INODE_MAP_INDEX, inodeBitmap);
     bio_write(DATA_MAP_INDEX, dataBitmap);
+
+    setup_fs_files();
+
 
 }
 int test_simple_block(){
@@ -144,88 +208,47 @@ void test_inode_write(){
     
 }
 
-void setup_fs_files(){
 
-    node = (struct inode *) malloc(sizeof(struct inode));
-    testDirent = (struct dirent *) malloc(sizeof(struct dirent));
+int test_dir_find(){
 
-    new_inode_num = get_avail_ino();
-    block = get_avail_blkno();
-
-    readi(new_inode_num, node);
-
-    node->ino = new_inode_num;
-    node->valid = 1;
-    node->size = 3; //idk how to calc size
-    node->type = DIR_TYPE;
-    node->link = 0;
-
-
-    node->direct_ptr[0] = block;
-    printf("1 setup block ind %d\n", block);
-
-    writei(node->ino, node);
-
-
-    dir_name = "testDir";
-
-    testDirent->ino = new_inode_num;
-    testDirent->valid = 1;
-    memcpy(testDirent->name, dir_name, 8);
-
-    
-    bio_write(block-1, testDirent);
-
-
-    /* new block of file */
-    block2 = get_avail_blkno();
-    node->direct_ptr[1] = block2;
-    printf("2 setup block ind %d\n", block2);
-    
-    writei(node->ino, node);
-
-    dir_name = "testDir_childdir";
-
-    testDirent->ino = new_inode_num;
-    testDirent->valid = 1;
-    memcpy(testDirent->name, dir_name, 17);
-
-    
-    bio_write(block2-1, testDirent);
-    
-    free(testDirent);
-    free(node);
-    
-}
-int test_dir(){
-
-    setup_fs_files();
-    
-    struct dirent * readDirent = (struct dirent *) malloc(sizeof(struct dirent));
-    
-    printf("first block after setup: %d\n", block);
     dir_find(block, "testDir", 17, readDirent);
 
-    free(readDirent);
 }
+
+int test_dir_add(){
+
+    
+    
+
+    uint16_t f_ino = (uint16_t) get_avail_ino();
+    bio_read(0, buf);
+    
+    dir_add(*node, 2, "addDir", 7);
+
+    dir_find(block, "testDir", 17, readDirent);
+
+}
+
+
 int main(int argc, char **argv){
     
     inodeBitmap = (bitmap_t) malloc(BLOCK_SIZE * INODE_BITMAP_SIZE);
     dataBitmap = (bitmap_t) malloc(BLOCK_SIZE * DATA_BITMAP_SIZE);
-
+    node = (struct inode *) malloc(sizeof(struct inode));
+    readDirent = (struct dirent *) malloc(sizeof(struct dirent));
     setup_fs();
 
     /* test_inode_write(); */
 
     /* test_simple_block(); */
 
-    test_dir();
+    /* test_dir_find(); */
+    test_dir_add();
 
-    
     free(super);
     free(inodeBitmap);
     free(dataBitmap);
-
+    free(readDirent);
     printf("\n\n\n*****\n\n\n");
 }
 

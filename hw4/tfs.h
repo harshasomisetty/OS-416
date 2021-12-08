@@ -50,15 +50,21 @@ struct dirent {
 	char name[252];					/* name of the directory entry */
 };
 
-int abstractIndex(int realIndex) {
-	return realIndex + 1;
+int abstractIndex(int ind) {
+	return ind + 1;
 }
 
-int realIndex(int abstractIndex){
-	return abstractIndex - 1;
+int realIndex(int ind){
+	return ind - 1;
 }
 
+void print_arr(int * array){
+    printf("array ");
+    for(int loop = 0; loop < DIRECT_PTR_ARR_SIZE; loop++)
+      printf("%d ", array[loop]);
+    printf("\n");
 
+}
 
 
 /*
