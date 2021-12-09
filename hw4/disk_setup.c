@@ -118,36 +118,7 @@ void setup_fs_files(){
 }
 
 
-/* code to init super block, bitmaps */
-void setup_fs(){
-    
-    int i = 0;
-    for (i = 0; i < BLOCK_SIZE*DATA_BITMAP_SIZE; i++){
-        inodeBitmap[i] = 0;
-        dataBitmap[i] = 0;
-    }
 
-    /* inodeBitmap = (bitmap_t) calloc(sizeof(BLOCK_SIZE * INODE_BITMAP_SIZE), 1); */
-    /* dataBitmap = (bitmap_t) calloc(sizeof(BLOCK_SIZE * DATA_BITMAP_SIZE), 1); */
-    
-    super = (struct superblock *) malloc(sizeof(struct superblock));
-    super->magic_num = MAGIC_NUM;
-    super->max_inum = INODE_BLOCK_RESERVE - 1;
-    super->max_dnum = DATA_BLOCK_RESERVE - 1;
-    super->i_bitmap_blk = BLOCK_SIZE;
-    super->d_bitmap_blk = BLOCK_SIZE * 2;
-    super->i_start_blk = BLOCK_SIZE * 3;
-    super->d_start_blk = BLOCK_SIZE * 3 + BLOCK_SIZE * INODE_BLOCK_RESERVE;
-
-    dev_init(DISKFILE);
-    bio_write(SUPERBLOCK_INDEX, super);
-    bio_write(INODE_MAP_INDEX, inodeBitmap);
-    bio_write(DATA_MAP_INDEX, dataBitmap);
-
-    setup_fs_files();
-
-
-}
 int test_simple_block(){
     
     int tries = 2;
@@ -318,18 +289,17 @@ void test_dir_functions() {
 }
 
 int main(int argc, char **argv){
-    
-    inodeBitmap = (bitmap_t) malloc(BLOCK_SIZE * INODE_BITMAP_SIZE);
-    dataBitmap = (bitmap_t) malloc(BLOCK_SIZE * DATA_BITMAP_SIZE);
+
+    printf("running test dir\n");
+    tfs_mkfs();
+
+            
     node = (struct inode *) malloc(sizeof(struct inode));
     readDirent = (struct dirent *) malloc(sizeof(struct dirent));
 
-    printf("running test dir\n");
-    setup_fs();
-
-    /* bitTest(); */
-
-    /* Test_inode_write(); */
+    setup_fs_files();
+    
+    /* test_inode_write(); */
 
     /* test_simple_block(); */
 

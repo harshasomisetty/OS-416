@@ -29,10 +29,11 @@
 #include "global.h"
 
 char diskfile_path[PATH_MAX];
+FILE *file;
 
 // Declare your in-memory data structures here
 bitmap_t inodeBitmap, dataBitmap;
-
+struct superblock * super; 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 // BITMAP OPERATIONS
@@ -398,16 +399,34 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 int tfs_mkfs() {
 
     // Call dev_init() to initialize (Create) Diskfile
-
+    dev_init(DISKFILE);
+    
     // write superblock information
+    
+    super = (struct superblock *) malloc(sizeof(struct superblock));
+    super->magic_num = MAGIC_NUM;
+    super->max_inum = INODE_BLOCK_RESERVE - 1;
+    super->max_dnum = DATA_BLOCK_RESERVE - 1;
+    super->i_bitmap_blk = BLOCK_SIZE;
+    super->d_bitmap_blk = BLOCK_SIZE * 2;
+    super->i_start_blk = BLOCK_SIZE * 3;
+    super->d_start_blk = BLOCK_SIZE * 3 + BLOCK_SIZE * INODE_BLOCK_RESERVE;
 
-    // initialize inode bitmap
+    // initialize inode and data block bitmap
+    inodeBitmap = (bitmap_t) malloc(BLOCK_SIZE * INODE_BITMAP_SIZE);
+    dataBitmap = (bitmap_t) malloc(BLOCK_SIZE * DATA_BITMAP_SIZE);
+    int i = 0;
+    for (i = 0; i < BLOCK_SIZE*DATA_BITMAP_SIZE; i++){
+        inodeBitmap[i] = 0;
+        dataBitmap[i] = 0;
+    }
 
-    // initialize data block bitmap
 
-    // update bitmap information for root directory
+    // update bitmap information and inode map for root directory
 
-    // update inode for root directory
+    bio_write(SUPERBLOCK_INDEX, super);
+    bio_write(INODE_MAP_INDEX, inodeBitmap);
+    bio_write(DATA_MAP_INDEX, dataBitmap);
 
     return 0;
 }
@@ -420,11 +439,16 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 
     // Step 1a: If disk file is not found, call mkfs
 
+    if (file != fopen(DISKFILE, "r")){
+        tfs_mkfs();
+    } else{
     // Step 1b: If disk file is found, just initialize in-memory data structures
     // and read superblock from disk
-
-    inodeBitmap = (bitmap_t) malloc(sizeof(BLOCK_SIZE * INODE_BITMAP_SIZE));
-    dataBitmap = (bitmap_t) malloc(sizeof(BLOCK_SIZE * DATA_BITMAP_SIZE));
+        
+        // TODO READ SUPERBLOCK
+        inodeBitmap = (bitmap_t) malloc(sizeof(BLOCK_SIZE * INODE_BITMAP_SIZE));
+        dataBitmap = (bitmap_t) malloc(sizeof(BLOCK_SIZE * DATA_BITMAP_SIZE));
+    }
     return NULL;
 }
 
@@ -432,8 +456,12 @@ static void tfs_destroy(void *userdata) {
 
     // Step 1: De-allocate in-memory data structures
 
+    // TODO free super
+    free(inodeBitmap);
+    free(dataBitmap);
+    
     // Step 2: Close diskfile
-
+    fclose(file);
 }
 
 static int tfs_getattr(const char *path, struct stat *stbuf) {
@@ -603,21 +631,21 @@ static int tfs_utimens(const char *path, const struct timespec tv[2]) {
 
 
 static struct fuse_operations tfs_ope = {
-    .init		= tfs_init,
+    .init	= tfs_init,
     .destroy	= tfs_destroy,
 
     .getattr	= tfs_getattr,
     .readdir	= tfs_readdir,
     .opendir	= tfs_opendir,
     .releasedir	= tfs_releasedir,
-    .mkdir		= tfs_mkdir,
-    .rmdir		= tfs_rmdir,
+    .mkdir	= tfs_mkdir,
+    .rmdir	= tfs_rmdir,
 
-    .create		= tfs_create,
-    .open		= tfs_open,
-    .read 		= tfs_read,
-    .write		= tfs_write,
-    .unlink		= tfs_unlink,
+    .create	= tfs_create,
+    .open	= tfs_open,
+    .read 	= tfs_read,
+    .write	= tfs_write,
+    .unlink	= tfs_unlink,
 
     .truncate   = tfs_truncate,
     .flush      = tfs_flush,

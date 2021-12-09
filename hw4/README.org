@@ -34,4 +34,14 @@ y = 7707
 
 * Scripts explanation
 run_test.sh compiles the tests in the benchmarks folder, can customize which test to auto run
-disk_setup.sh compiles and runs the disk_setup.c code script to test writing to the disk file
+setup.sh compiles and runs the disk_setup.c code script to test writing to the disk file
+
+* Tasks
+** TFS
+*** TODO read in super block in tfs_init
+*** TODO rest of functions
+** Dir functions
+*** implement larger files
+*** test out adding files dir more
+*** test dir_remove
+*** test getting node by path
