@@ -204,7 +204,7 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
             /*     printf("File: %s\n", dirent->name); */
             /* } */
                         
-            printf("File: %s\n", dirent->name);
+            printf("File %d: %s\n", j, dirent->name);
                         
 
         }
@@ -233,69 +233,79 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 
 int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t name_len) {
 
-	// Step 1: Read dir_inode's data block and check each directory entry of dir_inode
-	// Step 2: Check if fname (directory name) is already used in other entries
+    // Step 1: Read dir_inode's data block and check each directory entry of dir_inode
+    // Step 2: Check if fname (directory name) is already used in other entries
 
-	int i, j, realBlockIndex, firstEmptyBlockIndex = -1, firstEmptyEntryIndex = -1, firstEmptyEntryBlockIndex = -1;
-	char* block_ptr = malloc(BLOCK_SIZE);
-	struct dirent * entry = (struct dirent *) malloc(sizeof(struct dirent));
-	struct dirent * firstEmptyEntry = NULL;
-	for (i = 0; i < DIRECT_PTR_ARR_SIZE; i++) {
-		realBlockIndex = realIndex(dir_inode.direct_ptr[i]);
-		if (dir_inode.direct_ptr[i] == 0 || get_bitmap(dataBitmap, realBlockIndex) == 0) {
-			firstEmptyBlockIndex = firstEmptyBlockIndex == -1 ? i : firstEmptyBlockIndex; 
-			continue;
-		}
-		bio_read(realBlockIndex, block_ptr);
+    int i, j, realBlockIndex, firstEmptyBlockIndex = -1, firstEmptyEntryIndex = -1, firstEmptyEntryBlockIndex = -1;
+    char* block_ptr = malloc(BLOCK_SIZE);
+    struct dirent * entry = (struct dirent *) malloc(sizeof(struct dirent));
+    struct dirent * firstEmptyEntry = NULL;
 
-		for (j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++) {
-			memcpy(entry, block_ptr + j*sizeof(struct dirent), sizeof(struct dirent));
-			if (entry->valid != INVALID && strcmp(entry->name, fname) == 0) {
-				free(block_ptr);
-				free(entry);
-				return -1;
-			}
-			if (firstEmptyEntry == NULL && entry->valid == INVALID) {
-				firstEmptyEntry = entry;
-				firstEmptyEntryIndex = j;
-				firstEmptyEntryBlockIndex = i;
-			}			
-		}
-	}
+    for (i = 0; i < DIRECT_PTR_ARR_SIZE; i++) {
+        realBlockIndex = realIndex(dir_inode.direct_ptr[i]);
 
-	// Step 3: Add directory entry in dir_inode's data block and write to disk
-	// Allocate a new data block for this directory if it does not exist
-	// Update directory inode
-	// Write directory entry
+        if (dir_inode.direct_ptr[i] == 0 || get_bitmap(dataBitmap, realBlockIndex) == 0) {
+            firstEmptyBlockIndex = firstEmptyBlockIndex == -1 ? i : firstEmptyBlockIndex; 
+            continue;
+        }
+        bio_read(realBlockIndex, block_ptr);
 
-	if (firstEmptyEntry == NULL && firstEmptyBlockIndex == -1) {
-		//directory is full, end here
-		free(block_ptr);
-		free(entry);
-		return -1;
-	}
-	else if (firstEmptyEntry == NULL) {
-		//all blocks are full, need to allocate a new one...
-		dir_inode.direct_ptr[firstEmptyBlockIndex] = get_avail_blkno();
-		bio_read(realIndex(dir_inode.direct_ptr[firstEmptyBlockIndex]), block_ptr);
-		firstEmptyEntry = (struct dirent *) malloc(sizeof(struct dirent));
-		firstEmptyEntry->ino = f_ino;
-		firstEmptyEntry->valid = 1;
-		strncpy(firstEmptyEntry->name, fname, name_len);
-		memcpy(block_ptr, firstEmptyEntry, sizeof(struct dirent));
-		bio_write(realIndex(dir_inode.direct_ptr[firstEmptyBlockIndex]), block_ptr);
-		writei(dir_inode.ino, &dir_inode);
-	}
-	else {
-		bio_read(realIndex(dir_inode.direct_ptr[firstEmptyEntryBlockIndex]), block_ptr);
-		firstEmptyEntry->ino = f_ino;
-		firstEmptyEntry->valid = 1;
-		strncpy(firstEmptyEntry->name, fname, name_len);
-		memcpy(block_ptr + firstEmptyEntryIndex * sizeof(struct dirent), firstEmptyEntry, sizeof(struct dirent));
-		bio_write(realIndex(dir_inode.direct_ptr[firstEmptyEntryBlockIndex]), block_ptr);
-	}
+        for (j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++) {
 
-	return 0;
+            memcpy(entry, block_ptr + j*sizeof(struct dirent), sizeof(struct dirent));
+            if (entry->valid != INVALID && strcmp(entry->name, fname) == 0) {
+
+                free(block_ptr);
+                free(entry);
+                return -1;
+            }
+            if (firstEmptyEntry == NULL && entry->valid == INVALID) {
+                
+                firstEmptyEntry = entry;
+                firstEmptyEntryIndex = j;
+                firstEmptyEntryBlockIndex = i;
+
+                /* printf("entries: %d, %d, %d\n", firstEmptyEntry, firstEmptyEntryIndex, firstEmptyEntryBlockIndex); */
+            }			
+        }
+
+    }
+    
+    // Step 3: Add directory entry in dir_inode's data block and write to disk
+    // Allocate a new data block for this directory if it does not exist
+    // Update directory inode
+    // Write directory entry
+    if (firstEmptyEntry == NULL && firstEmptyBlockIndex == -1) {
+        printf("a\n");
+        //directory is full, end here
+        free(block_ptr);
+        free(entry);
+        return -1;
+    }
+    else if (firstEmptyEntry == NULL) { // if one entry is invalid, replace with that
+        printf("b\n");
+        //all blocks are full, need to allocate a new one...
+        dir_inode.direct_ptr[firstEmptyBlockIndex] = get_avail_blkno();
+        bio_read(realIndex(dir_inode.direct_ptr[firstEmptyBlockIndex]), block_ptr);
+        firstEmptyEntry = (struct dirent *) malloc(sizeof(struct dirent));
+        firstEmptyEntry->ino = f_ino;
+        firstEmptyEntry->valid = 1;
+        strncpy(firstEmptyEntry->name, fname, name_len);
+        memcpy(block_ptr, firstEmptyEntry, sizeof(struct dirent));
+        bio_write(realIndex(dir_inode.direct_ptr[firstEmptyBlockIndex]), block_ptr);
+        writei(dir_inode.ino, &dir_inode);
+    }
+    else { //space in directory, so just write ther
+        printf("c\n");
+        bio_read(realIndex(dir_inode.direct_ptr[firstEmptyEntryBlockIndex]), block_ptr);
+        firstEmptyEntry->ino = f_ino;
+        firstEmptyEntry->valid = 1;
+        strncpy(firstEmptyEntry->name, fname, name_len);
+        memcpy(block_ptr + firstEmptyEntryIndex * sizeof(struct dirent), firstEmptyEntry, sizeof(struct dirent));
+        bio_write(realIndex(dir_inode.direct_ptr[firstEmptyEntryBlockIndex]), block_ptr);
+    }
+
+    return 0;
 }
 
 /*
@@ -346,41 +356,41 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
 
 int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 	
-	// Step 1: Resolve the path name, walk through path, and finally, find its inode.
-	// Note: You could either implement it in a iterative way or recursive way
-	char* remPath = NULL, * cur = path;
-	int i = 0;
-	if (strlen(path) <= 1)
-		return -1;
+    // Step 1: Resolve the path name, walk through path, and finally, find its inode.
+    // Note: You could either implement it in a iterative way or recursive way
+    char* remPath = NULL, * cur = path;
+    int i = 0;
+    if (strlen(path) <= 1)
+        return -1;
 	
-	for (i = 1; i < strlen(path); i++) {
-		if (path[i] == '/'){
-			cur = malloc(i - 1);
-			memcpy(cur, path + 1, i - 1);
-			remPath = path + i;
-			break;
-		}
-	}
-	if (remPath == NULL) {
-		cur = malloc(i - 1);
-		memcpy(cur, path + 1, i - 1);
-	}
+    for (i = 1; i < strlen(path); i++) {
+        if (path[i] == '/'){
+            cur = malloc(i - 1);
+            memcpy(cur, path + 1, i - 1);
+            remPath = path + i;
+            break;
+        }
+    }
+    if (remPath == NULL) {
+        cur = malloc(i - 1);
+        memcpy(cur, path + 1, i - 1);
+    }
 
-	int finalFlag = 0;
-	struct dirent * entry = (struct dirent *) malloc(sizeof(struct dirent));
-	dir_find(ino, cur, strlen(cur), entry);
-	free(cur);
-	if (entry->valid == INVALID) { //nothing found
-		free(entry);
-		return -1;
-	}
-	else if (remPath == NULL) 
-		readi(entry->ino, inode);
-	else 
-		get_node_by_path(remPath, entry->ino, inode);
+    int finalFlag = 0;
+    struct dirent * entry = (struct dirent *) malloc(sizeof(struct dirent));
+    dir_find(ino, cur, strlen(cur), entry);
+    free(cur);
+    if (entry->valid == INVALID) { //nothing found
+        free(entry);
+        return -1;
+    }
+    else if (remPath == NULL) 
+        readi(entry->ino, inode);
+    else 
+        get_node_by_path(remPath, entry->ino, inode);
 
-	free(entry);
-	return 0;
+    free(entry);
+    return 0;
 }
 /* 
  * Make file system
