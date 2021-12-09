@@ -157,7 +157,6 @@ int writei(uint16_t ino, struct inode *inode) {
 	return 0;
 }
 
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DIRECTORY OPERATIONS
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -279,13 +278,14 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
 		strncpy(firstEmptyEntry->name, fname, name_len);
 		memcpy(block_ptr, firstEmptyEntry, sizeof(struct dirent));
 		bio_write(realIndex(dir_inode.direct_ptr[firstEmptyBlockIndex]), block_ptr);
+		writei(dir_inode.ino, &dir_inode);
 	}
 	else {
 		bio_read(realIndex(dir_inode.direct_ptr[firstEmptyEntryBlockIndex]), block_ptr);
 		firstEmptyEntry->ino = f_ino;
 		firstEmptyEntry->valid = 1;
 		strncpy(firstEmptyEntry->name, fname, name_len);
-		memcpy(block_ptr + firstEmptyEntryIndex * sizeof(struct dirent), firstEmptyEntry, block_ptr);
+		memcpy(block_ptr + firstEmptyEntryIndex * sizeof(struct dirent), firstEmptyEntry, sizeof(struct dirent));
 		bio_write(realIndex(dir_inode.direct_ptr[firstEmptyEntryBlockIndex]), block_ptr);
 	}
 
@@ -344,15 +344,21 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 	// Note: You could either implement it in a iterative way or recursive way
 	char* remPath = NULL, * cur = path;
 	int i = 0;
-	for (i = 0; i < strlen(path); i++) {
+	if (strlen(path) <= 1)
+		return -1;
+	
+	for (i = 1; i < strlen(path); i++) {
 		if (path[i] == '/'){
-			cur = malloc(i);
-			memcpy(cur, path, i);
+			cur = malloc(i - 1);
+			memcpy(cur, path + 1, i - 1);
 			remPath = path + i;
 			break;
 		}
 	}
-
+	if (remPath == NULL) {
+		cur = malloc(i - 1);
+		memcpy(cur, path + 1, i - 1);
+	}
 
 	int finalFlag = 0;
 	struct dirent * entry = (struct dirent *) malloc(sizeof(struct dirent));
@@ -370,7 +376,6 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 	free(entry);
 	return 0;
 }
-
 /* 
  * Make file system
  */
