@@ -168,16 +168,7 @@ int test_dir_find(){
 void test_dir_functions() {
 
     struct inode* rootInode = (struct inode *) malloc(sizeof(struct inode));
-
-    rootInode->ino = get_avail_ino();
-    rootInode->size = 0;
-    rootInode->valid = VALID;
-    rootInode->type = 0;
-    rootInode->link = 0;
-    rootInode->direct_ptr[0] = get_avail_blkno();
-    writei(rootInode->ino, rootInode);
-
-    /* readi(1, rootInode); */
+    readi(1, rootInode);
 
     struct inode* fileDir = (struct inode *) malloc(sizeof(struct inode));
     fileDir->ino = get_avail_ino();
@@ -202,15 +193,16 @@ void test_dir_functions() {
     for (int file_count=0; file_count<14; file_count++){
         sprintf(testString, "dir_%d", file_count);
         dir_add(*rootInode, fileDir->ino, testString, 8);
+        /* printf("tried adding %d\n\n", file_count); */
     }
     
     printf("added dirs\n");
 
-    dir_remove(*rootInode, "dir_4", 7);
+    dir_remove(*rootInode, "dir_2", 7);
     printf("removed?\n");
     /* dir_list(rootInode->ino, readDirent); */
     dir_list(rootInode->ino, readDirent);
-    dir_find(rootInode->ino, "dir_3", 6, readDirent);
+    printf("found file?: %d\n", dir_find(rootInode->ino, "dir_3", 6, readDirent));
     
     /* dir_add(*fileDir, fileNode->ino, "file.txt", 8); */
     /* struct dirent * entryOne = (struct dirent *) malloc(sizeof (struct dirent)), */
@@ -224,7 +216,7 @@ void test_dir_functions() {
 	
     struct inode * reloadedNode = (struct inode *) malloc(sizeof(struct inode));
     /* get_node_by_path("/files/file.txt", rootInode->ino, reloadedNode); */
-    get_node_by_path("/file9_3", rootInode->ino, reloadedNode);
+    get_node_by_path("/dir_8", rootInode->ino, reloadedNode);
     printf("Node found by path: %d\n", reloadedNode->ino);
 
     free(rootInode);
@@ -244,7 +236,11 @@ int main(int argc, char **argv){
     printf("running test dir\n");
     tfs_mkfs();
 
-    printf("super stuff: %d, %d, %d\n", super->i_bitmap_blk, super->d_bitmap_blk, super->i_start_blk);
+    printf("super stuff: %d, %d, %d, %d\n", super->i_bitmap_blk, super->d_bitmap_blk, super->i_start_blk, super->d_start_blk);
+    struct inode * cur_node = (struct inode *) malloc(sizeof(struct inode));
+    get_node_by_path("/", 1, cur_node);
+    printf("Node found by path: %d\n", cur_node->ino);
+    /* printf("not a dir: %d, %d, %d\n", cur_node->type, cur_node->ino, cur_node->valid); */
     /* test_inode_write(); */
 
     /* test_simple_block(); */
@@ -252,12 +248,13 @@ int main(int argc, char **argv){
     /* test_dir_find(); */
     /* test_dir_add(); */
 
-    test_dir_functions();
+    /* test_dir_functions(); */
     
     free(super);
     free(inodeBitmap);
     free(dataBitmap);
     free(readDirent);
+    /* free(cur_node); */
     
     printf("\n\n\n*****\n\n\n");
 }

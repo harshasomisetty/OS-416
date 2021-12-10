@@ -236,7 +236,6 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
         for(int j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++){
             memcpy(dirent, block_ptr + j * sizeof(struct dirent), sizeof(struct dirent));
             if (dirent->valid != INVALID && strcmp(fname, dirent->name) == 0){
-                printf("Found file: %s\n", fname);
                 free(dir);
                 free(block_ptr);
                 return 0;
@@ -244,7 +243,6 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
         }
 
     }
-    printf("Didn't find file: %s\n", fname);
     free(dir);
     free(block_ptr);
     return -1;
@@ -274,49 +272,53 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
     struct dirent * entry = (struct dirent *) malloc(sizeof(struct dirent));
     struct dirent * firstEmptyEntry = NULL;
 
+    /* printf("dir info: ino: %d, dirptr %d\n", dir_inode.ino, dir_inode.direct_ptr[0]); */
+    if (dir_find(dir_inode.ino, fname, name_len, entry) == 0){
+        printf("Can't add, file already exists\n");
+        return -1;
+    }
+
     for (int i = 0; i < DIRECT_PTR_ARR_SIZE; i++) {
         realBlockIndex = realIndex(dir_inode.direct_ptr[i]);
 
+        if (firstEmptyEntry != NULL)
+            break;
+        
         if (dir_inode.direct_ptr[i] == 0 || get_bitmap(dataBitmap, realBlockIndex) == 0) {
+            /* printf("continued\n"); */
             firstEmptyBlockIndex = firstEmptyBlockIndex == -1 ? i : firstEmptyBlockIndex; 
             continue;
         }
+
         bio_read(realBlockIndex, block_ptr);
 
+        /* printf("starting inner: %d\n", i); */
         for (int j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++) {
 
             memcpy(entry, block_ptr + j*sizeof(struct dirent), sizeof(struct dirent));
-            if (entry->valid != INVALID && strcmp(entry->name, fname) == 0) {
-
-                free(block_ptr);
-                free(entry);
-                return -1;
-            }
-            if (firstEmptyEntry == NULL && entry->valid == INVALID) {
-                
+            /* printf("block entry in loop: %d\n", entry->valid); */
+            if (entry->valid == INVALID) {
+                /* printf("breaking add: %d, %d\n", i, j); */
                 firstEmptyEntry = entry;
                 firstEmptyEntryIndex = j;
                 firstEmptyEntryBlockIndex = i;
-
-                /* printf("entries: %d, %d, %d\n", firstEmptyEntry, firstEmptyEntryIndex, firstEmptyEntryBlockIndex); */
+                break;
             }			
         }
-
     }
     
     // Step 3: Add directory entry in dir_inode's data block and write to disk
     // Allocate a new data block for this directory if it does not exist
     // Update directory inode
     // Write directory entry
-    if (firstEmptyEntry == NULL && firstEmptyBlockIndex == -1) {
-        printf("a\n");
-        //directory is full, end here
+    if (firstEmptyEntry == NULL && firstEmptyBlockIndex == -1) {        //directory is full, end here
         free(block_ptr);
         free(entry);
         return -1;
     }
     else if (firstEmptyEntry == NULL) { // if one entry is invalid, replace with that
         printf("b\n");
+        printf("b? %d, %d, %d\n", firstEmptyEntryIndex, firstEmptyEntryBlockIndex, 69);
         //all blocks are full, need to allocate a new one...
         dir_inode.direct_ptr[firstEmptyBlockIndex] = get_avail_blkno();
         bio_read(realIndex(dir_inode.direct_ptr[firstEmptyBlockIndex]), block_ptr);
@@ -394,39 +396,25 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 	
     // Step 1: Resolve the path name, walk through path, and finally, find its inode.
     // Note: You could either implement it in a iterative way or recursive way
-    char* remPath = NULL, * cur = path;
-    int i = 0;
-    if (strlen(path) <= 1)
-        return -1;
-	
-    for (i = 1; i < strlen(path); i++) {
-        if (path[i] == '/'){
-            cur = malloc(i - 1);
-            memcpy(cur, path + 1, i - 1);
-            remPath = path + i;
-            break;
-        }
-    }
-    if (remPath == NULL) {
-        cur = malloc(i - 1);
-        memcpy(cur, path + 1, i - 1);
-    }
 
-    int finalFlag = 0;
+    char * token;
+    char * rest = path;
+    
     struct dirent * entry = (struct dirent *) malloc(sizeof(struct dirent));
-    dir_find(ino, cur, strlen(cur), entry);
-    free(cur);
-    if (entry->valid == INVALID) { //nothing found
-        free(entry);
-        return -1;
-    }
-    else if (remPath == NULL) 
-        readi(entry->ino, inode);
-    else 
-        get_node_by_path(remPath, entry->ino, inode);
 
-    free(entry);
-    return 0;
+    token = strtok_r(rest, "/", &rest);
+
+    if (token == NULL){//if no more path left, means we are looking in currentdir
+        readi(ino, inode);
+        return 0;
+    }
+
+    // if more paths left
+    if (dir_find(ino, token, strlen(token), entry) == 0)
+        return get_node_by_path(rest, entry->ino, inode);
+    else
+        return -1;
+    
 }
 /* 
  * Make file system
@@ -503,8 +491,8 @@ int tfs_mkfs() {
     super->magic_num = MAGIC_NUM;
     super->max_inum = INODE_BLOCK_RESERVE - 1;
     super->max_dnum = DATA_BLOCK_RESERVE - 1;
-    super->i_bitmap_blk = 1;
-    super->d_bitmap_blk = 2;
+    super->i_bitmap_blk = INODE_MAP_INDEX;
+    super->d_bitmap_blk = DATA_MAP_INDEX;
     super->i_start_blk = INODE_BLOCK_RESERVE_INDEX;
     super->d_start_blk = DATA_BLOCK_RESERVE_INDEX;
 
@@ -525,13 +513,16 @@ int tfs_mkfs() {
     root->size = 0;
     root->type = DIR_TYPE;
     root->link = 2;
-
+    root->direct_ptr[0] = get_avail_blkno();
     
     bio_write(SUPERBLOCK_INDEX, super);
     bio_write(INODE_MAP_INDEX, inodeBitmap);
     bio_write(DATA_MAP_INDEX, dataBitmap);
 
     writei(root->ino, root);
+
+    printf("root ino at: %d\n", root->ino);
+
     
     /* setup_fs_files(); */
     return 0;
@@ -828,15 +819,10 @@ static struct fuse_operations tfs_ope = {
 };
 
 
-/* int main(int argc, char *argv[]) { */
-/*     int fuse_stat; */
-/*     printf("start main\n"); */
-        
-/*     getcwd(diskfile_path, PATH_MAX); */
-/*     strcat(diskfile_path, "/DISKFILE"); */
-
-/*     fuse_stat = fuse_main(argc, argv, &tfs_ope, NULL); */
-
-/*     return fuse_stat; */
-/* } */
+int main(int argc, char *argv[]) {
+    int fuse_stat;
+    getcwd(diskfile_path, PATH_MAX);
+    strcat(diskfile_path, "/DISKFILE");
+    return fuse_main(argc, argv, &tfs_ope, NULL);
+}
 
