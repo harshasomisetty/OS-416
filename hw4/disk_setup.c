@@ -264,7 +264,11 @@ void test_dir_functions() {
     
     printf("added files\n");
 
+    dir_remove(*rootInode, "file_4", 7);
+    printf("removed?\n");
+    dir_list(rootInode->ino, readDirent);
     dir_find(rootInode->ino, "files", 6, readDirent);
+    
     /* dir_add(*fileDir, fileNode->ino, "file.txt", 8); */
     /* struct dirent * entryOne = (struct dirent *) malloc(sizeof (struct dirent)), */
         /* * entryTwo = (struct dirent *) malloc(sizeof (struct dirent)); */
@@ -275,14 +279,15 @@ void test_dir_functions() {
     /* printf("Text File Inode: %d Entry Two Inode: %d\n", fileNode->ino, entryTwo->ino); */
     /* printf("Text File name: %s\n", entryTwo->name); */
 	
-    /* struct inode * reloadedNode = (struct inode *) malloc(sizeof(struct inode)); */
+    struct inode * reloadedNode = (struct inode *) malloc(sizeof(struct inode));
     /* get_node_by_path("/files/file.txt", rootInode->ino, reloadedNode); */
-    /* printf("Node found by path: %d\n", reloadedNode->ino); */
+    get_node_by_path("/file9_3", rootInode->ino, reloadedNode);
+    printf("Node found by path: %d\n", reloadedNode->ino);
 
     free(rootInode);
     /* free(fileNode); */
     /* free(entryOne); */
-    /* free(reloadedNode); */
+    free(reloadedNode);
     /* free(entryTwo); */
     free(testString);
     free(fileDir);

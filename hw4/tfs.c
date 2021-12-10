@@ -166,7 +166,47 @@ int writei(uint16_t ino, struct inode *inode) {
  */
 
 
-/* current edited to print out all the files for a inode. to change, uncommont the commented blcok of code */
+/* list out files in a dir */
+int dir_list(uint16_t ino, struct dirent *dirent) {
+
+    // Step 1: Call readi() to get the inode using ino (inode number of current directory)
+    struct inode * dir = (struct inode *) malloc(sizeof(struct inode));
+    readi(ino, dir);
+
+    // Step 2: Get data block of current directory from inode
+    // Step 3: Read directory's data block and check each directory entry.
+    //If the name matches, then copy directory entry to dirent structure
+
+    //go through each block of the directory. For each block, look at each dirent entry. 
+    //if the dirent entry matches, stop iterating
+
+    int i, j, realBlockIndex;
+    char* block_ptr = malloc(BLOCK_SIZE);
+    printf("\nListing files in Dir: %d\n", ino );
+        
+    for(int i = 0; i < DIRECT_PTR_ARR_SIZE; i++){
+		
+        realBlockIndex = realIndex(dir->direct_ptr[i]);
+        if (dir->direct_ptr[i] == 0 || get_bitmap(dataBitmap, realBlockIndex) == 0)
+            continue;
+        
+        bio_read(realBlockIndex, block_ptr);
+		
+        for(j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++){
+            memcpy(dirent, block_ptr + j * sizeof(struct dirent), sizeof(struct dirent));
+            if (dirent->valid != INVALID){
+                printf("%d: %s\n", dirent->ino, dirent->name);
+            }
+        }
+    }
+    printf("\n\n");
+    free(dir);
+    free(block_ptr);
+    return -1;
+}
+
+
+/* files a file and stores dirent header in passed in value */
 int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *dirent) {
 
     // Step 1: Call readi() to get the inode using ino (inode number of current directory)
@@ -182,7 +222,7 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 
     int i, j, realBlockIndex;
     char* block_ptr = malloc(BLOCK_SIZE);
-    printf("Searching for: %s\n", fname);
+
         
     for(int i = 0; i < DIRECT_PTR_ARR_SIZE; i++){
 		
@@ -195,24 +235,16 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 		
         for(j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++){
             memcpy(dirent, block_ptr + j * sizeof(struct dirent), sizeof(struct dirent));
-
-            /* if (dirent->valid != INVALID && strcmp(fname, dirent->name) == 0){ */
-            /* 	free(dir); */
-            /* 	free(block_ptr); */
-            /*         printf("found file: %s\n", fname); */
-            /* 	return 0; */
-            /* } else{ */
-            /*     printf("File: %s\n", dirent->name); */
-            /* } */
-                        
-            printf("File %d: %s\n", j, dirent->name);
-                        
-
+            if (dirent->valid != INVALID && strcmp(fname, dirent->name) == 0){
+                printf("Found file: %s\n", fname);
+                free(dir);
+                free(block_ptr);
+                return 0;
+            }
         }
 
-        printf("new node\n\n\n");
     }
-    printf("didn't find file");
+    printf("Didn't find file\n");
     free(dir);
     free(block_ptr);
     return -1;
@@ -297,7 +329,7 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
         writei(dir_inode.ino, &dir_inode);
     }
     else { //space in directory, so just write ther
-        printf("c\n");
+        /* printf("c\n"); */
         bio_read(realIndex(dir_inode.direct_ptr[firstEmptyEntryBlockIndex]), block_ptr);
         firstEmptyEntry->ino = f_ino;
         firstEmptyEntry->valid = 1;
@@ -332,9 +364,11 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
         if (dir_inode.direct_ptr[i] == 0 || get_bitmap(dataBitmap, realBlockIndex) == 0) 
             continue;
         bio_read(realBlockIndex, block_ptr);
+
         for (j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++) {
             memcpy(entry, block_ptr + j * sizeof(struct dirent), sizeof(struct dirent));
             if (entry->valid != INVALID && strcmp(fname, entry->name) == 0){
+                printf("Removing file\n");
                 entry->valid = INVALID;
                 memcpy(block_ptr + j * sizeof(struct dirent), entry, sizeof(struct dirent));
                 bio_write(realBlockIndex, block_ptr);
@@ -344,7 +378,8 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
             }
         }
     }
-
+    
+    printf("No file to delete\n");
     free(block_ptr);
     free(entry);
     return -1;
