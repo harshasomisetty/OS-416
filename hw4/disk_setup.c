@@ -52,73 +52,10 @@ struct dirent * dirent_buf;
 
 int new_inode_num, block, block2;
 char* dir_name;
-struct dirent * testDirent;
+
 struct dirent * readDirent;
 struct inode * node;
      
-
-/* this code creates a test file system */
-/* the first found inode is DIR_TYPE, is basically the main */
-/* this node has 2 direct pointers to 2 blocks */
-/* each block has a dirent inside */
-/* both dirent entries have the same inode value, need to edit */
-    
-void setup_fs_files(){
-    printf("in setup_files\n");
-
-    testDirent = (struct dirent *) malloc(sizeof(struct dirent));
-
-    new_inode_num = get_avail_ino();
-    block = get_avail_blkno();
-
-    readi(new_inode_num, node);
-
-    node->ino = new_inode_num;
-    node->valid = 1;
-    node->size = 3; //idk how to calc size
-    node->type = DIR_TYPE;
-    node->link = 0;
-
-
-    node->direct_ptr[0] = block;
-
-    writei(node->ino, node);
-
-
-    dir_name = "testDir";
-
-    testDirent->ino = new_inode_num;
-    testDirent->valid = 1;
-    memcpy(testDirent->name, dir_name, 8);
-
-    
-    bio_write(realIndex(block), testDirent);
-
-    /* new block of file */
-    block2 = realIndex(get_avail_blkno());
-    node->direct_ptr[1] = abstractIndex(block2);
-    /* printf("2 setup block ind %d\n", block2); */
-    
-    /* print_arr(node->direct_ptr); //remove */
-    
-    writei(node->ino, node);
-
-    dir_name = "testDir_childdir";
-
-    testDirent->ino = new_inode_num;
-    testDirent->valid = 1;
-    memcpy(testDirent->name, dir_name, 17);
-
-    
-    bio_write(block2, testDirent);
-    
-    free(testDirent);
-    /* free(node); */
-    
-}
-
-
-
 int test_simple_block(){
     
     int tries = 2;
@@ -231,6 +168,7 @@ int test_dir_find(){
 void test_dir_functions() {
 
     struct inode* rootInode = (struct inode *) malloc(sizeof(struct inode));
+
     rootInode->ino = get_avail_ino();
     rootInode->size = 0;
     rootInode->valid = VALID;
@@ -238,6 +176,8 @@ void test_dir_functions() {
     rootInode->link = 0;
     rootInode->direct_ptr[0] = get_avail_blkno();
     writei(rootInode->ino, rootInode);
+
+    /* readi(1, rootInode); */
 
     struct inode* fileDir = (struct inode *) malloc(sizeof(struct inode));
     fileDir->ino = get_avail_ino();
@@ -248,6 +188,8 @@ void test_dir_functions() {
     fileDir->direct_ptr[0] = get_avail_blkno();
     writei(fileDir->ino, fileDir);
 
+    printf("root ind: %d\n", rootInode->ino);
+    printf("file ind: %d\n", fileDir->ino);
     /* struct inode* fileNode = (struct inode *) malloc(sizeof(struct inode)); */
     /* fileNode->ino = get_avail_ino(); */
     /* fileNode->size = 0; */
@@ -257,17 +199,18 @@ void test_dir_functions() {
     /* writei(fileNode->ino, fileNode); */
     
     char * testString = (char*)malloc(8*sizeof(char));
-    for (int file_count=0; file_count<15; file_count++){
-        sprintf(testString, "file_%d", file_count);
+    for (int file_count=0; file_count<14; file_count++){
+        sprintf(testString, "dir_%d", file_count);
         dir_add(*rootInode, fileDir->ino, testString, 8);
     }
     
-    printf("added files\n");
+    printf("added dirs\n");
 
-    dir_remove(*rootInode, "file_4", 7);
+    dir_remove(*rootInode, "dir_4", 7);
     printf("removed?\n");
+    /* dir_list(rootInode->ino, readDirent); */
     dir_list(rootInode->ino, readDirent);
-    dir_find(rootInode->ino, "files", 6, readDirent);
+    dir_find(rootInode->ino, "dir_3", 6, readDirent);
     
     /* dir_add(*fileDir, fileNode->ino, "file.txt", 8); */
     /* struct dirent * entryOne = (struct dirent *) malloc(sizeof (struct dirent)), */
@@ -295,15 +238,13 @@ void test_dir_functions() {
 
 int main(int argc, char **argv){
 
+                
+    readDirent = (struct dirent *) malloc(sizeof(struct dirent));
+    
     printf("running test dir\n");
     tfs_mkfs();
 
-            
-    node = (struct inode *) malloc(sizeof(struct inode));
-    readDirent = (struct dirent *) malloc(sizeof(struct dirent));
-
-    setup_fs_files();
-    
+    printf("super stuff: %d, %d, %d\n", super->i_bitmap_blk, super->d_bitmap_blk, super->i_start_blk);
     /* test_inode_write(); */
 
     /* test_simple_block(); */

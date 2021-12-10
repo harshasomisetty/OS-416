@@ -32,6 +32,7 @@ char diskfile_path[PATH_MAX];
 FILE *file;
 
 // Declare your in-memory data structures here
+char buf[BLOCK_SIZE];
 bitmap_t inodeBitmap, dataBitmap;
 struct superblock * super; 
 
@@ -53,8 +54,8 @@ int get_avail_ino() {
     bio_read(INODE_MAP_INDEX, inodeBitmap);
 	
     // Step 2: Traverse inode bitmap to find an available slot
-    int i = 0;
-    for (i = 0; i < BLOCK_SIZE * INODE_BITMAP_SIZE; i++) //we start at 1 because we want 0 to mean null
+    int i;
+    for (i = 1; i < BLOCK_SIZE * INODE_BITMAP_SIZE; i++) //we start at 1 because we want 0 to mean null
         if (get_bitmap(inodeBitmap, i) == 0) {
             set_bitmap(inodeBitmap, i);
             break;
@@ -180,8 +181,8 @@ int dir_list(uint16_t ino, struct dirent *dirent) {
     //go through each block of the directory. For each block, look at each dirent entry. 
     //if the dirent entry matches, stop iterating
 
-    int i, j, realBlockIndex;
-    char* block_ptr = malloc(BLOCK_SIZE);
+    int realBlockIndex;
+
     printf("\nListing files in Dir: %d\n", ino );
         
     for(int i = 0; i < DIRECT_PTR_ARR_SIZE; i++){
@@ -190,10 +191,10 @@ int dir_list(uint16_t ino, struct dirent *dirent) {
         if (dir->direct_ptr[i] == 0 || get_bitmap(dataBitmap, realBlockIndex) == 0)
             continue;
         
-        bio_read(realBlockIndex, block_ptr);
+        bio_read(realBlockIndex, buf);
 		
-        for(j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++){
-            memcpy(dirent, block_ptr + j * sizeof(struct dirent), sizeof(struct dirent));
+        for(int j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++){
+            memcpy(dirent, buf + j * sizeof(struct dirent), sizeof(struct dirent));
             if (dirent->valid != INVALID){
                 printf("%d: %s\n", dirent->ino, dirent->name);
             }
@@ -201,7 +202,6 @@ int dir_list(uint16_t ino, struct dirent *dirent) {
     }
     printf("\n\n");
     free(dir);
-    free(block_ptr);
     return -1;
 }
 
@@ -220,7 +220,7 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
     //go through each block of the directory. For each block, look at each dirent entry. 
     //if the dirent entry matches, stop iterating
 
-    int i, j, realBlockIndex;
+    int realBlockIndex;
     char* block_ptr = malloc(BLOCK_SIZE);
 
         
@@ -233,7 +233,7 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 
         bio_read(realBlockIndex, block_ptr);
 		
-        for(j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++){
+        for(int j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++){
             memcpy(dirent, block_ptr + j * sizeof(struct dirent), sizeof(struct dirent));
             if (dirent->valid != INVALID && strcmp(fname, dirent->name) == 0){
                 printf("Found file: %s\n", fname);
@@ -244,7 +244,7 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
         }
 
     }
-    printf("Didn't find file\n");
+    printf("Didn't find file: %s\n", fname);
     free(dir);
     free(block_ptr);
     return -1;
@@ -269,12 +269,12 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
     // Step 1: Read dir_inode's data block and check each directory entry of dir_inode
     // Step 2: Check if fname (directory name) is already used in other entries
 
-    int i, j, realBlockIndex, firstEmptyBlockIndex = -1, firstEmptyEntryIndex = -1, firstEmptyEntryBlockIndex = -1;
+    int realBlockIndex, firstEmptyBlockIndex = -1, firstEmptyEntryIndex = -1, firstEmptyEntryBlockIndex = -1;
     char* block_ptr = malloc(BLOCK_SIZE);
     struct dirent * entry = (struct dirent *) malloc(sizeof(struct dirent));
     struct dirent * firstEmptyEntry = NULL;
 
-    for (i = 0; i < DIRECT_PTR_ARR_SIZE; i++) {
+    for (int i = 0; i < DIRECT_PTR_ARR_SIZE; i++) {
         realBlockIndex = realIndex(dir_inode.direct_ptr[i]);
 
         if (dir_inode.direct_ptr[i] == 0 || get_bitmap(dataBitmap, realBlockIndex) == 0) {
@@ -283,7 +283,7 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
         }
         bio_read(realBlockIndex, block_ptr);
 
-        for (j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++) {
+        for (int j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++) {
 
             memcpy(entry, block_ptr + j*sizeof(struct dirent), sizeof(struct dirent));
             if (entry->valid != INVALID && strcmp(entry->name, fname) == 0) {
@@ -431,8 +431,69 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 /* 
  * Make file system
  */
-int tfs_mkfs() {
 
+/* this code creates a test file system */
+/* the first found inode is DIR_TYPE, is basically the main */
+/* this node has 2 direct pointers to 2 blocks */
+/* each block has a dirent inside */
+/* both dirent entries have the same inode value, need to edit */
+    
+void setup_fs_files(){
+    printf("in setup_files\n");
+
+    struct dirent * testDirent = (struct dirent *) malloc(sizeof(struct dirent));
+    int new_inode_num, block, block2;
+    struct inode * node = (struct inode *) malloc(sizeof(struct inode));
+    
+    new_inode_num = get_avail_ino();
+    block = get_avail_blkno();
+    readi(new_inode_num, node);
+
+    
+    node->ino = new_inode_num;
+    node->valid = VALID;
+    node->size = 3; //idk how to calc size
+    node->type = DIR_TYPE;
+    node->link = 0;
+
+
+    node->direct_ptr[0] = block;
+
+    writei(node->ino, node);
+    printf("here\n");
+
+    char dir_name[10] = "testDir";
+
+    testDirent->ino = new_inode_num;
+    testDirent->valid = 1;
+    memcpy(testDirent->name, dir_name, 8);
+
+    
+    bio_write(realIndex(block), testDirent);
+
+    /* new block of file */
+    block2 = realIndex(get_avail_blkno());
+    node->direct_ptr[1] = abstractIndex(block2);
+    
+    writei(node->ino, node);
+
+    char dir_name2[10] = "childDir";
+
+    testDirent->ino = new_inode_num;
+    testDirent->valid = 1;
+    memcpy(testDirent->name, dir_name2, 17);
+
+    
+    bio_write(block2, testDirent);
+    
+    free(testDirent);
+    /* free(node); */
+    printf("fisihed setup\n");
+}
+
+
+int tfs_mkfs() {
+    printf("in tfs_mkfs\n");
     // Call dev_init() to initialize (Create) Diskfile
     dev_init(DISKFILE);
     
@@ -442,10 +503,10 @@ int tfs_mkfs() {
     super->magic_num = MAGIC_NUM;
     super->max_inum = INODE_BLOCK_RESERVE - 1;
     super->max_dnum = DATA_BLOCK_RESERVE - 1;
-    super->i_bitmap_blk = BLOCK_SIZE;
-    super->d_bitmap_blk = BLOCK_SIZE * 2;
-    super->i_start_blk = BLOCK_SIZE * 3;
-    super->d_start_blk = BLOCK_SIZE * 3 + BLOCK_SIZE * INODE_BLOCK_RESERVE;
+    super->i_bitmap_blk = 1;
+    super->d_bitmap_blk = 2;
+    super->i_start_blk = INODE_BLOCK_RESERVE_INDEX;
+    super->d_start_blk = DATA_BLOCK_RESERVE_INDEX;
 
     // initialize inode and data block bitmap
     inodeBitmap = (bitmap_t) malloc(BLOCK_SIZE * INODE_BITMAP_SIZE);
@@ -458,11 +519,21 @@ int tfs_mkfs() {
 
 
     // update bitmap information and inode map for root directory
+    struct inode * root = (struct inode *) malloc(sizeof(struct inode));
+    root->ino = 1;
+    root->valid = VALID;
+    root->size = 0;
+    root->type = DIR_TYPE;
+    root->link = 2;
 
+    
     bio_write(SUPERBLOCK_INDEX, super);
     bio_write(INODE_MAP_INDEX, inodeBitmap);
     bio_write(DATA_MAP_INDEX, dataBitmap);
 
+    writei(root->ino, root);
+    
+    /* setup_fs_files(); */
     return 0;
 }
 
@@ -473,17 +544,29 @@ int tfs_mkfs() {
 static void *tfs_init(struct fuse_conn_info *conn) {
 
     // Step 1a: If disk file is not found, call mkfs
-
+    printf("tfs init\n");
     if (file != fopen(DISKFILE, "r")){
+        printf("making new\n");
         tfs_mkfs();
     } else{
     // Step 1b: If disk file is found, just initialize in-memory data structures
     // and read superblock from disk
-        
+        printf("reusing\n");
+        dev_open(DISKFILE);
+        bio_read(0, buf);
+        memcpy(super, buf, sizeof(super));
+
+        if (super->magic_num!= MAGIC_NUM){
+            fprintf(stderr, "wrong magic");
+            exit(0);
+        }
+           
         // TODO READ SUPERBLOCK
         inodeBitmap = (bitmap_t) malloc(sizeof(BLOCK_SIZE * INODE_BITMAP_SIZE));
         dataBitmap = (bitmap_t) malloc(sizeof(BLOCK_SIZE * DATA_BITMAP_SIZE));
     }
+
+
     return NULL;
 }
 
@@ -502,21 +585,47 @@ static void tfs_destroy(void *userdata) {
 static int tfs_getattr(const char *path, struct stat *stbuf) {
 
     // Step 1: call get_node_by_path() to get inode from path
-
+    /* get_node_by_path(path, stbuf->ino_t, reloadedNode); */
     // Step 2: fill attribute of file into stbuf from inode
+    struct inode * cur_node = (struct inode *) malloc(sizeof(struct inode));
 
-    stbuf->st_mode   = S_IFDIR | 0755;
-    stbuf->st_nlink  = 2;
+    get_node_by_path(path, 0, cur_node);
+
+    stbuf->st_uid = getuid();
+    stbuf->st_gid = getgid();
+    stbuf->st_ino = cur_node->ino;
+    stbuf->st_nlink = cur_node->link;
+    stbuf->st_size = cur_node->size;
+    stbuf->st_blksize = BLOCK_SIZE;
+    
+    if(cur_node->type == FILE_TYPE) {
+        stbuf->st_mode = S_IFREG | 0644;
+    }
+    else {
+        stbuf->st_mode = S_IFDIR | 0755;
+    }
+
     time(&stbuf->st_mtime);
-
+    free(cur_node);
     return 0;
 }
 
 static int tfs_opendir(const char *path, struct fuse_file_info *fi) {
 
+    struct inode * cur_node = (struct inode *) malloc(sizeof(struct inode));
     // Step 1: Call get_node_by_path() to get inode from path
+    printf("in opendir\n");
+    get_node_by_path(path, 1, cur_node);
 
+    if (cur_node->type != DIR_TYPE){
+        printf("not a dir: %d, %d, %d\n", cur_node->type, cur_node->ino, cur_node->valid);
+        printf("path: %s\n", path);
+        free(cur_node);
+        return -1;
+    }
+    
     // Step 2: If not find, return -1
+    free(cur_node);
 
     return 0;
 }
@@ -525,8 +634,38 @@ static int tfs_readdir(const char *path, void *buffer, fuse_fill_dir_t filler, o
 
     // Step 1: Call get_node_by_path() to get inode from path
 
+    struct inode * cur_node = (struct inode *) malloc(sizeof(struct inode));
+    // Step 1: Call get_node_by_path() to get inode from path
+    printf("in readdir\n");
+    get_node_by_path(path, 1, cur_node);
+
+    if (cur_node->type != DIR_TYPE){
+        printf("not a dir: %d\n", cur_node->type);
+        free(cur_node);
+        return -1;
+    }
+    
     // Step 2: Read directory entries from its data blocks, and copy them to filler
 
+    struct dirent * dirent = (struct dirent *) malloc(sizeof(struct dirent));
+    int realBlockIndex;
+    for(int i = 0; i < DIRECT_PTR_ARR_SIZE; i++){
+		
+        realBlockIndex = realIndex(cur_node->direct_ptr[i]);
+        if (cur_node->direct_ptr[i] == 0 || get_bitmap(dataBitmap, realBlockIndex) == 0)
+            continue;
+        
+        bio_read(realBlockIndex, buf);
+		
+        for(int j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++){
+            memcpy(dirent, buf + j * sizeof(struct dirent), sizeof(struct dirent));
+            if (dirent->valid != INVALID){
+                filler(buffer, dirent->name, NULL, 0);
+            }
+        }
+    }
+
+    free(dirent);
     return 0;
 }
 
@@ -690,13 +829,14 @@ static struct fuse_operations tfs_ope = {
 
 
 /* int main(int argc, char *argv[]) { */
-/* 	int fuse_stat; */
+/*     int fuse_stat; */
+/*     printf("start main\n"); */
+        
+/*     getcwd(diskfile_path, PATH_MAX); */
+/*     strcat(diskfile_path, "/DISKFILE"); */
 
-/* 	getcwd(diskfile_path, PATH_MAX); */
-/* 	strcat(diskfile_path, "/DISKFILE"); */
+/*     fuse_stat = fuse_main(argc, argv, &tfs_ope, NULL); */
 
-/* 	fuse_stat = fuse_main(argc, argv, &tfs_ope, NULL); */
-
-/* 	return fuse_stat; */
+/*     return fuse_stat; */
 /* } */
 
