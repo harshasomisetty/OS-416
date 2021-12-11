@@ -1,5 +1,5 @@
 #!/bin/bash
-
+> DISKFILE
 fusermount -u /tmp/hs884/mountdir
 make clean
 make
