@@ -688,11 +688,22 @@ static int tfs_rmdir(const char *path) {
     
     // Step 2: Call get_node_by_path() to get inode of parent directory
     struct inode * cur_node = (struct inode *) malloc(sizeof(struct inode));
-    get_node_by_path(parent, 1, cur_node);
 
     if (strcmp(path, "/")==0){
         printf("don't delete root plis");
         return -EPERM;
+    }
+
+    
+    if(get_node_by_path(path, 1, cur_node)!=0){
+        printf("delete path no exist\n");
+        free(cur_node);
+        return -ENOENT;
+    }
+    if (cur_node->type != DIR_TYPE){
+        printf("path not dir. ino: %d, type: %d\n", cur_node->ino, cur_node->type);
+        free(cur_node);
+        return -ENOENT;
     }
 
     // Step 3: Clear data block bitmap of target directory
@@ -731,7 +742,7 @@ static int tfs_rmdir(const char *path) {
 
     dir_remove(*cur_node, base, strlen(base));
     free(cur_node);
-    printf("deleted dir\n");
+    printf("*****deleted dir\n");
     return 0;
 }
 
