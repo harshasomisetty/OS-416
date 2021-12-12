@@ -36,6 +36,7 @@ char buf[BLOCK_SIZE];
 char bit_buf[BLOCK_SIZE];
 bitmap_t inodeBitmap, dataBitmap;
 struct superblock * super; 
+struct inode * root;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 // BITMAP OPERATIONS
@@ -419,9 +420,11 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
         return -1;
     
 }
-/* 
- * Make file system
- */
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+// FILE SYSTEM OPERATIONS
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /* this code creates a test file system */
 /* the first found inode is DIR_TYPE, is basically the main */
@@ -456,7 +459,7 @@ int tfs_mkfs() {
 
 
     // update bitmap information and inode map for root directory
-    struct inode * root = (struct inode *) malloc(sizeof(struct inode));
+    root = (struct inode *) malloc(sizeof(struct inode));
     root->ino = get_avail_ino();
     root->valid = VALID;
     root->size = 0;
@@ -537,9 +540,11 @@ int make_file(const char *path, mode_t mode, int type){
     return 0;
 }
 
-/* 
- * FUSE file operations
- */
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TFS OPERATIONS
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 static void *tfs_init(struct fuse_conn_info *conn) {
 
     // Step 1a: If disk file is not found, call mkfs
@@ -753,53 +758,216 @@ static int tfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
 static int tfs_open(const char *path, struct fuse_file_info *fi) {
 
     // Step 1: Call get_node_by_path() to get inode from path
-
-    // Step 2: If not find, return -1
-
-    return 0;
+	struct inode * inode = (struct inode *) malloc(sizeof(struct inode));
+	return get_node_by_path(path, root->ino, inode) == 0 ? inode->ino : -1;
+	// Step 2: If not find, return -1
 }
 
 static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, struct fuse_file_info *fi) {
 
     // Step 1: You could call get_node_by_path() to get inode from path
+    struct inode * file = (struct inode *) malloc(sizeof(struct inode));
+    if (get_node_by_path(path, root->ino, file) == -1) 
+        return -ENOENT;
 
     // Step 2: Based on size and offset, read its data blocks from disk
+                          
+    // int copied = 0, reading = 0; 
+    // int blockIndex = offset / BLOCK_SIZE, withinBlockOffset = offset % BLOCK_SIZE;     
+    // char * block_ptr = (char *) malloc(BLOCK_SIZE);
+    // int brokenFlag = 0;
+
+    /* 
+    while (copied < size) {
+        if (file->direct_ptr[blockIndex] == 0) {
+            brokenFlag = 1;
+            break;
+        }
+        bio_read(realIndex(file->direct_ptr[blockIndex]), block_ptr);
+        reading = size - copied >= BLOCK_SIZE ? BLOCK_SIZE : size - copied;
+        memcpy(buffer + copied, block_ptr + withinBlockOffset, reading);
+        copied += reading;
+        withinBlockOffset = 0;
+        blockIndex++;
+    } 
+    */
+    
+    int indirectBlockIndex = (((offset / BLOCK_SIZE) - 16 ) / (BLOCK_SIZE / 4)) - 1;
+    
+    int blockIndex = indirectBlockIndex >= 0 ? 
+        ((offset / BLOCK_SIZE) - DIRECT_PTR_ARR_SIZE) % (BLOCK_SIZE / 4) : offset / BLOCK_SIZE; 
+    
+    int withinBlockOffset = offset % BLOCK_SIZE;
+    int copied = 0, reading = 0, blockNum = 0;
+    indirectBlockIndex--; 
+    char* block_ptr = (char *) malloc(BLOCK_SIZE), indirect_ptr = (char *) malloc(BLOCK_SIZE); 
+
+    while(copied < size) {
+        if (indirectBlockIndex == -1) {
+            blockNum = file->direct_ptr[blockIndex];
+            if (blockNum == 0)
+                break;
+            bio_read(realIndex(blockNum), block_ptr);
+        }
+        if (indirectBlockIndex >= 0) {
+            blockNum = *((int *) (indirect_ptr + blockIndex * 4));
+            if (get_bitmap(dataBitmap, realIndex(blockNum)) == 0)
+                break;
+            bio_read(realIndex(blockNum), block_ptr);
+        }
+
+        reading = size - copied >= BLOCK_SIZE ? BLOCK_SIZE : size - copied;
+        memcpy(buffer + copied, block_ptr + withinBlockOffset, reading);
+        copied += reading;
+        withinBlockOffset = 0;
+
+        blockIndex++;
+        if ((indirectBlockIndex == -1 && blockIndex >= DIRECT_PTR_ARR_SIZE) || blockIndex >= BLOCK_SIZE / 4) {
+            blockIndex = 0;
+            indirectBlockIndex++;
+            if (file->indirect_ptr[indirectBlockIndex] == 0)
+                break;
+            bio_read(indirectBlockIndex, indirect_ptr);
+        }
+    }
+
 
     // Step 3: copy the correct amount of data from offset to buffer
-
     // Note: this function should return the amount of bytes you copied to buffer
-    return 0;
+    free(file);
+    free(block_ptr);
+    return copied;
 }
 
 static int tfs_write(const char *path, const char *buffer, size_t size, off_t offset, struct fuse_file_info *fi) {
     // Step 1: You could call get_node_by_path() to get inode from path
 
+    struct inode * file = (struct inode *) malloc(sizeof(struct inode)); 
+    if (get_node_by_path(path, root->ino, file) == -1) 
+        return -ENOENT;
+
     // Step 2: Based on size and offset, read its data blocks from disk
+    // int written = 0, writing = 0;
+    // int blockIndex = offset / BLOCK_SIZE, withinBlockOffset = offset % BLOCK_SIZE;
+    // char * block_ptr = (char *) malloc(BLOCK_SIZE);
+
+    // while (written < size) {
+    //     if (file->direct_ptr[blockIndex] == 0) {
+    //         file->direct_ptr[blockIndex] = get_avail_blkno();
+    //     }
+    //     bio_read(realIndex(file->direct_ptr[blockIndex]), block_ptr);
+    //     writing = size - written >= BLOCK_SIZE ? BLOCK_SIZE : size - written;
+    //     memcpy(block_ptr + withinBlockOffset, buffer + written, writing);
+    //     bio_write(realIndex(file->direct_ptr[blockIndex]), block_ptr);
+    //     withinBlockOffset = 0;
+    //     written += writing;
+    //     blockIndex++;
+    // }
+
+    int indirectBlockIndex = (((offset / BLOCK_SIZE) - 16 ) / (BLOCK_SIZE / 4)) - 1;
+    
+    int blockIndex = indirectBlockIndex >= 0 ? 
+        ((offset / BLOCK_SIZE) - DIRECT_PTR_ARR_SIZE) % (BLOCK_SIZE / 4) : offset / BLOCK_SIZE; 
+    
+    int withinBlockOffset = offset % BLOCK_SIZE;
+    int written = 0, writing = 0, blockNum = 0;
+    indirectBlockIndex--; 
+    char* block_ptr = (char *) malloc(BLOCK_SIZE), indirect_ptr = (char *) malloc(BLOCK_SIZE); 
+
+    while(written < size) {
+        if (indirectBlockIndex == -1) {
+            blockNum = file->direct_ptr[blockIndex];
+            if (blockNum == 0)
+                break;
+            bio_read(realIndex(blockNum), block_ptr);
+        }
+        if (indirectBlockIndex >= 0) {
+            blockNum = *((int *) (indirect_ptr + blockIndex * 4));
+            if (get_bitmap(dataBitmap, realIndex(blockNum)) == 0)
+                break;
+            bio_read(realIndex(blockNum), block_ptr);
+        }
+
+        writing = size - written >= BLOCK_SIZE ? BLOCK_SIZE : size - written;
+        memcpy(buffer + written, block_ptr + withinBlockOffset, writing);
+        bio_write(realIndex(blockNum), block_ptr);
+        written += writing;
+        withinBlockOffset = 0;
+
+        blockIndex++;
+        if ((indirectBlockIndex == -1 && blockIndex >= DIRECT_PTR_ARR_SIZE) || blockIndex >= BLOCK_SIZE / 4) {
+            blockIndex = 0;
+            indirectBlockIndex++;
+            if (file->indirect_ptr[indirectBlockIndex] == 0)
+                break;
+            bio_read(indirectBlockIndex, indirect_ptr);
+        }
+    }
 
     // Step 3: Write the correct amount of data from offset to disk
 
     // Step 4: Update the inode info and write it to disk
+    file->size = offset + size > file->size ? offset + size : file->size;
+    writei(file->ino, file);
 
     // Note: this function should return the amount of bytes you write to disk
-    return size;
+    free(block_ptr);
+    free(file);
+    return written;
 }
 
 static int tfs_unlink(const char *path) {
 
     // Step 1: Use dirname() and basename() to separate parent directory path and target file name
+    char* parent = dirname(strdup(path));
+    char* base = basename(strdup(path));
 
     // Step 2: Call get_node_by_path() to get inode of target file
-
+    struct inode* file = (struct inode *) malloc(sizeof(struct inode));
+    if (get_node_by_path(path, root->ino, file) == -1) 
+        return -ENOENT;
+    
     // Step 3: Clear data block bitmap of target file
-
+    int i;
+    for (i = 0; i < DIRECT_PTR_ARR_SIZE; i++) {
+        if (file->direct_ptr[i] == 0)
+            continue;
+        unset_bitmap(dataBitmap, realIndex(file->direct_ptr[i]));
+        file->direct_ptr[i] = 0;
+    }
+    char* indirectBlock = malloc(BLOCK_SIZE);
+    for (i = 0; i < DIRECT_PTR_ARR_SIZE; i++) {
+        if (file->indirect_ptr[i] == 0)
+            continue;
+        bio_read(realIndex(file->indirect_ptr[i]), indirectBlock);
+        int j = 0;
+        for (j = 0; j < BLOCK_SIZE / 4; j++){
+            unset_bitmap(dataBitmap, realIndex(*((int *)(indirectBlock + j * 4)))); 
+        }
+        file->indirect_ptr[i] = 0;
+    }
+    free(indirectBlock);
+    
     // Step 4: Clear inode bitmap and its data block
+    int fileInode = file->ino;
+    free(file);
+    file = calloc(1, sizeof(struct inode));
+    writei(fileInode, file);
+    unset_bitmap(inodeBitmap, realIndex(file->ino));
 
     // Step 5: Call get_node_by_path() to get inode of parent directory
+    if (get_node_by_path(parent, root->ino, file) == -1) 
+        return -ENOENT;
 
     // Step 6: Call dir_remove() to remove directory entry of target file in its parent directory
+    dir_remove(*file, base, strlen(base));
 
     return 0;
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+// DO NOT CHANGE
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static int tfs_releasedir(const char *path, struct fuse_file_info *fi) {
     // For this project, you don't need to fill this function
