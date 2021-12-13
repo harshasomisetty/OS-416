@@ -14,7 +14,7 @@
 
 #define BLOCK_SIZE 4096
 
-#define DISKFILE "DISKFILE"
+#define DISKFILE "benchmark/DISKFILE"
 #define BLOCK_SIZE 4096
 #define INODE_BITMAP_SIZE 1
 #define DATA_BITMAP_SIZE 1

@@ -549,7 +549,8 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 
     // Step 1a: If disk file is not found, call mkfs
     printf("tfs init\n");
-    if (file != fopen(DISKFILE, "r")){
+    /* if (file != fopen(DISKFILE, "r")){ */
+    if (access(DISKFILE, F_OK) != 0){
         printf("making new\n");
         tfs_mkfs();
     } else{
@@ -757,18 +758,32 @@ static int tfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
 
 static int tfs_open(const char *path, struct fuse_file_info *fi) {
 
-    // Step 1: Call get_node_by_path() to get inode from path
-	struct inode * inode = (struct inode *) malloc(sizeof(struct inode));
-	return get_node_by_path(path, root->ino, inode) == 0 ? inode->ino : -1;
+    printf("in open\n");
+    
+    struct inode * cur_node = (struct inode *) malloc(sizeof(struct inode));
+    // Step 1: Call get_node_by_path() to get inode from path    
+    if(get_node_by_path(path, 1, cur_node)!=0){
+        printf("file no exist\n");
+        free(cur_node);
+        return -ENOENT;
+    }
 	// Step 2: If not find, return -1
+    return 0;
+
+
 }
 
 static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, struct fuse_file_info *fi) {
 
+    printf("in read\n");
     // Step 1: You could call get_node_by_path() to get inode from path
     struct inode * file = (struct inode *) malloc(sizeof(struct inode));
-    if (get_node_by_path(path, root->ino, file) == -1) 
+    if(get_node_by_path(path, 1, file)!=0){
+        printf("file no exist\n");
+        free(file);
         return -ENOENT;
+    }
+
 
     // Step 2: Based on size and offset, read its data blocks from disk
                           
@@ -842,6 +857,8 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 static int tfs_write(const char *path, const char *buffer, size_t size, off_t offset, struct fuse_file_info *fi) {
     // Step 1: You could call get_node_by_path() to get inode from path
 
+    printf("in write- str: %s\n", buffer);
+    
     struct inode * file = (struct inode *) malloc(sizeof(struct inode)); 
     if (get_node_by_path(path, root->ino, file) == -1) 
         return -ENOENT;
@@ -918,6 +935,7 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 
 static int tfs_unlink(const char *path) {
 
+    printf("in unlink\n");
     // Step 1: Use dirname() and basename() to separate parent directory path and target file name
     char* parent = dirname(strdup(path));
     char* base = basename(strdup(path));
@@ -1026,8 +1044,10 @@ static struct fuse_operations tfs_ope = {
 
 int main(int argc, char *argv[]) {
     int fuse_stat;
+    printf("hiisdfksdjfdlkf\n");
     getcwd(diskfile_path, PATH_MAX);
-    strcat(diskfile_path, "/DISKFILE");
+    printf("DISKKK: %s\n", DISKFILE);
+    strcat(diskfile_path, DISKFILE);
     fuse_stat = fuse_main(argc, argv, &tfs_ope, NULL);
     return fuse_stat;
 }
