@@ -49,6 +49,14 @@ struct inode * root;
  *	as an abstract inode number so that a 0 as a inode number can mean null. 
  *
  */
+void print_bit(bitmap_t bitmap){
+    printf("bitmap ");
+    for(int loop = 0; loop < 64; loop++)
+        printf("%d ", get_bitmap(bitmap, loop));
+    printf("\n");
+
+}
+
 
 int get_avail_ino() {
 
@@ -57,13 +65,16 @@ int get_avail_ino() {
 	
     // Step 2: Traverse inode bitmap to find an available slot
     int i;
+    print_bit(inodeBitmap);
     for (i = 0; i < BLOCK_SIZE * INODE_BITMAP_SIZE; i++) //we start at 1 because we want 0 to mean null
+
         if (get_bitmap(inodeBitmap, i) == 0) {
             set_bitmap(inodeBitmap, i);
             break;
         }
     // Step 3: Update inode bitmap and write to disk 
     bio_write(INODE_MAP_INDEX, inodeBitmap);
+    printf("***********Assigning ino number! %d\n", abstractIndex(i));
 	
     return abstractIndex(i); 
 }
@@ -91,6 +102,7 @@ int get_avail_blkno() {
 	
     // Step 3: Update data block bitmap and write to disk 
     bio_write(DATA_MAP_INDEX, dataBitmap);
+    printf("***********Assigning block number! %d\n", abstractIndex(i));
 
     return abstractIndex(i); 
 }
@@ -232,7 +244,7 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
             continue;
         
 
-        bio_read(realBlockIndex, block_ptr);
+        bio_read(realBlockIndex+DATA_BLOCK_RESERVE_INDEX, block_ptr);
 		
         for(int j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++){
             memcpy(dirent, block_ptr + j * sizeof(struct dirent), sizeof(struct dirent));
@@ -240,7 +252,8 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
                 printf("found %s:ino: %d, valid: %d, i: %d,j: %d\n", dirent->name, dirent->ino, dirent->valid, i, j);
                 struct inode * file = (struct inode *) malloc(sizeof(struct inode));
                 readi(dirent->ino, file);
-                printf("ino: %d, size: %d, valid: %d\n", file->ino);
+                printf("DIRFIND ino: %d, size: %d, valid: %d\n", file->ino, file->size, file->valid);
+
                 print_arr(file->direct_ptr);
                 free(dir);
                 free(block_ptr);
@@ -298,7 +311,7 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
             continue;
         }
 
-        bio_read(realBlockIndex, block_ptr);
+        bio_read(realBlockIndex+DATA_BLOCK_RESERVE_INDEX, block_ptr);
 
         /* printf("starting inner: %d\n", i); */
         for (int j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++) {
@@ -329,23 +342,23 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
         printf("b? %d, %d, %d\n", firstEmptyEntryIndex, firstEmptyEntryBlockIndex, 69);
         //all blocks are full, need to allocate a new one...
         dir_inode.direct_ptr[firstEmptyBlockIndex] = get_avail_blkno();
-        bio_read(realIndex(dir_inode.direct_ptr[firstEmptyBlockIndex]), block_ptr);
+        bio_read(realIndex(dir_inode.direct_ptr[firstEmptyBlockIndex])+DATA_BLOCK_RESERVE_INDEX, block_ptr);
         firstEmptyEntry = (struct dirent *) malloc(sizeof(struct dirent));
         firstEmptyEntry->ino = f_ino;
         firstEmptyEntry->valid = 1;
         strncpy(firstEmptyEntry->name, fname, name_len);
         memcpy(block_ptr, firstEmptyEntry, sizeof(struct dirent));
-        bio_write(realIndex(dir_inode.direct_ptr[firstEmptyBlockIndex]), block_ptr);
+        bio_write(realIndex(dir_inode.direct_ptr[firstEmptyBlockIndex])+DATA_BLOCK_RESERVE_INDEX, block_ptr);
         writei(dir_inode.ino, &dir_inode);
     }
     else { //space in directory, so just write ther
         /* printf("c\n"); */
-        bio_read(realIndex(dir_inode.direct_ptr[firstEmptyEntryBlockIndex]), block_ptr);
+        bio_read(realIndex(dir_inode.direct_ptr[firstEmptyEntryBlockIndex])+DATA_BLOCK_RESERVE_INDEX, block_ptr);
         firstEmptyEntry->ino = f_ino;
         firstEmptyEntry->valid = 1;
         strncpy(firstEmptyEntry->name, fname, name_len);
         memcpy(block_ptr + firstEmptyEntryIndex * sizeof(struct dirent), firstEmptyEntry, sizeof(struct dirent));
-        bio_write(realIndex(dir_inode.direct_ptr[firstEmptyEntryBlockIndex]), block_ptr);
+        bio_write(realIndex(dir_inode.direct_ptr[firstEmptyEntryBlockIndex])+DATA_BLOCK_RESERVE_INDEX, block_ptr);
     }
 
     return 0;
@@ -373,7 +386,7 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
         realBlockIndex = realIndex(dir_inode.direct_ptr[i]);
         if (dir_inode.direct_ptr[i] == 0 || get_bitmap(dataBitmap, realBlockIndex) == 0) 
             continue;
-        bio_read(realBlockIndex, block_ptr);
+        bio_read(realBlockIndex+DATA_BLOCK_RESERVE_INDEX, block_ptr);
 
         for (j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++) {
             memcpy(entry, block_ptr + j * sizeof(struct dirent), sizeof(struct dirent));
@@ -381,7 +394,7 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
                 printf("Removing file\n");
                 entry->valid = INVALID;
                 memcpy(block_ptr + j * sizeof(struct dirent), entry, sizeof(struct dirent));
-                bio_write(realBlockIndex, block_ptr);
+                bio_write(realBlockIndex+DATA_BLOCK_RESERVE_INDEX, block_ptr);
                 free(block_ptr);
                 free(entry);
                 return 0;
@@ -435,6 +448,13 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 /* this node has 2 direct pointers to 2 blocks */
 /* each block has a dirent inside */
 /* both dirent entries have the same inode value, need to edit */
+void test_bit(){
+    for(int i = 0; i < 10; i++){
+        int ino_test = get_avail_ino();
+        printf("ino: %d", ino_test);
+        print_bit(inodeBitmap);
+    }
+}
 
 int tfs_mkfs() {
     printf("in tfs_mkfs\n");
@@ -482,6 +502,7 @@ int tfs_mkfs() {
 
     printf("root ino at: %d\n", root->ino);
 
+    /* test_bit(); */
     
     /* setup_fs_files(); */
     return 0;
@@ -514,7 +535,7 @@ int make_file(const char *path, mode_t mode, int type){
     // Step 3: Call get_avail_ino() to get an available inode number
 
     int avail_ino = get_avail_ino();
-    
+
     // Step 4: Call dir_add() to add directory entry of target directory to parent directory
     dir_add(*cur_node, avail_ino, base, strlen(base));
 
@@ -522,6 +543,7 @@ int make_file(const char *path, mode_t mode, int type){
 
     struct inode *new_node = malloc(sizeof(struct inode));
     readi(avail_ino, new_node);
+    
     new_node->ino = avail_ino;
     new_node->valid = 1;
     new_node->size = 0;
@@ -533,14 +555,27 @@ int make_file(const char *path, mode_t mode, int type){
     new_node->vstat.st_atime = time(0);
 
     // Step 6: Call writei() to write inode to disk
-    writei(avail_ino, new_node);
 
+    
+    print_arr(new_node->direct_ptr);
+    for(int i = 0; i<16; i++){
+        new_node->direct_ptr[i] = 0;
+        if(i <= 7)
+            new_node->indirect_ptr[i] = 0;
+
+    }
+    printf("after changing\n");
+    print_arr(new_node->direct_ptr);
+
+    writei(avail_ino, new_node);
     free(cur_node);
     free(new_node);
     if (type == FILE_TYPE)
         printf("*****created file\n");
     else
-        printf("*****created dir\n");        
+        printf("*****created dir\n");
+
+
     return 0;
 }
 
@@ -562,7 +597,7 @@ static void *tfs_init(struct fuse_conn_info *conn) {
     // and read superblock from disk
         printf("reusing\n");
         dev_open(DISKFILE);
-        bio_read(0, buf);
+        bio_read(SUPERBLOCK_INDEX, buf);
         memcpy(super, buf, sizeof(super));
 
         if (super->magic_num!= MAGIC_NUM){
@@ -672,7 +707,7 @@ static int tfs_readdir(const char *path, void *buffer, fuse_fill_dir_t filler, o
         if (cur_node->direct_ptr[i] == 0 || get_bitmap(dataBitmap, realBlockIndex) == 0)
             continue;
         
-        bio_read(realBlockIndex, buf);
+        bio_read(realBlockIndex+DATA_BLOCK_RESERVE_INDEX, buf);
 		
         for(int j = 0; j < BLOCK_SIZE / sizeof(struct dirent); j++){
             memcpy(dirent, buf + j * sizeof(struct dirent), sizeof(struct dirent));
@@ -725,9 +760,9 @@ static int tfs_rmdir(const char *path) {
         ptr = cur_node->direct_ptr[i];
         if (ptr == 0)
             continue;
-        bio_read(ptr, buf);
+        bio_read(ptr+DATA_BLOCK_RESERVE_INDEX, buf);
         memset(buf, 0, BLOCK_SIZE);
-        bio_write(ptr, buf);
+        bio_write(ptr+DATA_BLOCK_RESERVE_INDEX, buf);
         unset_bitmap(bit_buf, ptr);
         cur_node->direct_ptr[i] = 0;
     }
@@ -795,12 +830,12 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
     int blockIndex = offset / BLOCK_SIZE, withinBlockOffset = offset % BLOCK_SIZE;     
     char * block_ptr = (char *) malloc(BLOCK_SIZE);
 
-    printf("ino: %d, size: %d, valid: %d\n", file->ino);
+    printf("READDDD ino: %d, size: %d, valid: %d\n", file->ino, file->size, file->valid);
     print_arr(file->direct_ptr);
     while (copied < size || blockIndex >= DIRECT_PTR_ARR_SIZE) {
         if (file->direct_ptr[blockIndex] == 0) 
             break;
-        bio_read(realIndex(file->direct_ptr[blockIndex]), block_ptr);
+        bio_read(realIndex(file->direct_ptr[blockIndex])+DATA_BLOCK_RESERVE_INDEX, block_ptr);
         printf("block ptr: %d\n", block_ptr);
         reading = size - copied >= BLOCK_SIZE ? BLOCK_SIZE : size - copied;
         memcpy(buffer + copied, block_ptr + withinBlockOffset, reading);
@@ -815,11 +850,11 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
     int blocksOffset = 0;
     if (copied == 0) {
         // the amount of bytes offset into the indirect section
-        start = offset - 16 * BLOCK_SIZE; 
+        start = offset - 16 * BLOCK_SIZE;
         //the number of blocks into indirect section
-        blocksOffset = start / BLOCK_SIZE; 
+        blocksOffset = start / BLOCK_SIZE;
         //the number of indirect blocks into indirect section
-        indirect_ptr_arr_index = blocksOffset / (4 * BLOCK_SIZE); 
+        indirect_ptr_arr_index = blocksOffset / (4 * BLOCK_SIZE);
         start = blocksOffset % (indirect_ptr_arr_index * 4 * BLOCK_SIZE);
     }
     /*
@@ -827,13 +862,13 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
     */
 
     while (copied < size) {
-        if (file->indirect_ptr[indirect_ptr_arr_index] == 0) 
+        if (file->indirect_ptr[indirect_ptr_arr_index] == 0)
             break;
-        bio_read(realIndex(file->indirect_ptr[indirect_ptr_arr_index]), indirect_ptr_block);
+        bio_read(realIndex(file->indirect_ptr[indirect_ptr_arr_index])+DATA_BLOCK_RESERVE_INDEX, indirect_ptr_block);
         for (i = start; i < BLOCK_SIZE; i+= 4) {
             data_block_id = *( (int *) (indirect_ptr_block + i));
             if (get_bitmap(dataBitmap, realIndex(data_block_id)) == 1) {
-                bio_read(realIndex(data_block_id), block_ptr); 
+                bio_read(realIndex(data_block_id)+DATA_BLOCK_RESERVE_INDEX, block_ptr);
                 reading = size - copied >= BLOCK_SIZE ? BLOCK_SIZE : size - copied;
                 memcpy(buffer + copied, block_ptr + withinBlockOffset, reading);
                 copied += reading;
@@ -871,27 +906,28 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
     while (written < size) {
         if (file->direct_ptr[blockIndex] == 0) {
             file->direct_ptr[blockIndex] = get_avail_blkno();
+            printf("!!!!!!direc ptr: %d, blockIndex: %d \n", file->direct_ptr[blockIndex], blockIndex);
         }
-        bio_read(realIndex(file->direct_ptr[blockIndex]), block_ptr);
+        bio_read(realIndex(file->direct_ptr[blockIndex])+DATA_BLOCK_RESERVE_INDEX, block_ptr);
         writing = size - written >= BLOCK_SIZE ? BLOCK_SIZE : size - written;
         memcpy(block_ptr + withinBlockOffset, buffer + written, writing);
-        bio_write(realIndex(file->direct_ptr[blockIndex]), block_ptr);
+        bio_write(realIndex(file->direct_ptr[blockIndex])+DATA_BLOCK_RESERVE_INDEX, block_ptr);
         withinBlockOffset = 0;
         written += writing;
         blockIndex++;
     }
-
+    
     char* indirect_ptr_block = (char *) malloc(BLOCK_SIZE);
     int indirect_ptr_arr_index = 0;
     int i = 0, data_block_id, start = 0;
     int blocksOffset = 0;
     if (written == 0) {
         // the amount of bytes offset into the indirect section
-        start = offset - 16 * BLOCK_SIZE; 
+        start = offset - 16 * BLOCK_SIZE;
         //the number of blocks into indirect section
-        blocksOffset = start / BLOCK_SIZE; 
+        blocksOffset = start / BLOCK_SIZE;
         //the number of indirect blocks into indirect section
-        indirect_ptr_arr_index = blocksOffset / (4 * BLOCK_SIZE); 
+        indirect_ptr_arr_index = blocksOffset / (4 * BLOCK_SIZE);
         start = blocksOffset % (indirect_ptr_arr_index * 4 * BLOCK_SIZE);
     }
     /*
@@ -899,19 +935,21 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
     */
 
     while (written < size) {
-        if (file->indirect_ptr[indirect_ptr_arr_index] == 0) 
+        if (file->indirect_ptr[indirect_ptr_arr_index] == 0)
             break;
-        bio_read(realIndex(file->indirect_ptr[indirect_ptr_arr_index]), indirect_ptr_block);
+        bio_read(realIndex(file->indirect_ptr[indirect_ptr_arr_index])+DATA_BLOCK_RESERVE_INDEX, indirect_ptr_block);
         for (i = start; i < BLOCK_SIZE; i+= 4) {
             data_block_id = *( (int *) (indirect_ptr_block + i));
             if (get_bitmap(dataBitmap, realIndex(data_block_id)) == 1) {
-                bio_read(realIndex(data_block_id), block_ptr); 
+                bio_read(realIndex(data_block_id)+DATA_BLOCK_RESERVE_INDEX, block_ptr);
                 writing = size - written >= BLOCK_SIZE ? BLOCK_SIZE : size - written;
                 memcpy(buffer + written, block_ptr + withinBlockOffset, writing);
+                bio_write(realIndex(data_block_id)+DATA_BLOCK_RESERVE_INDEX, block_ptr);
                 written += writing;
                 withinBlockOffset = 0;
             }
         }
+        bio_write(realIndex(file->indirect_ptr[indirect_ptr_arr_index])+DATA_BLOCK_RESERVE_INDEX, indirect_ptr_block);
         start = 0;
         indirect_ptr_arr_index++;
     }
@@ -919,7 +957,13 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
     // Step 3: Write the correct amount of data from offset to disk
 
     // Step 4: Update the inode info and write it to disk
-    file->size = offset + size > file->size ? offset + size : file->size;
+    printf("*///***write file size: %d, plus %d, size %d, offset %d\n", file->size, (offset+size), size, offset);
+    if ((offset + size) > file->size)
+        file->size = offset + size;
+    else
+        file->size = file->size;
+    printf("*///***after file size: %d, plus %d, size %d, offset %d", file->size, (offset+size), size, offset);
+
     writei(file->ino, file);
     
     // Note: this function should return the amount of bytes you write to disk
@@ -952,7 +996,7 @@ static int tfs_unlink(const char *path) {
     for (i = 0; i < DIRECT_PTR_ARR_SIZE; i++) {
         if (file->indirect_ptr[i] == 0)
             continue;
-        bio_read(realIndex(file->indirect_ptr[i]), indirectBlock);
+        bio_read(realIndex(file->indirect_ptr[i])+DATA_BLOCK_RESERVE_INDEX, indirectBlock);
         int j = 0;
         for (j = 0; j < BLOCK_SIZE / 4; j++){
             unset_bitmap(dataBitmap, realIndex(*((int *)(indirectBlock + j * 4)))); 
