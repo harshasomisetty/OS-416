@@ -1,22 +1,5 @@
 
-* Disk Allocation Calculation
-x : number of inode blocks
-y: number of data blocks
-
-
-x = y/16 since 
-x + y = 8189
-y/16 + y = 8189
-y = 7707.3
-x = 481.70
-
-
-8189 - 482 = 7707
-
-approx
-
-x = 482
-y = 7707
+* Block Allocation
 
 
 | count | type         |
@@ -36,10 +19,12 @@ y = 7707
 run_test.sh compiles the tests in the benchmarks folder, can customize which test to auto run
 setup.sh compiles and runs the disk_setup.c code script to test writing to the disk file
 r_ fuse.sh compiles the tfs.c and mounts the file system. you can navigate to /tmp/hs884/mountdir and test out functions
-* Tasks
-** TFS
-*** TODO read in super block in tfs_init
-*** TODO rest of functions
-** Dir functions
-*** implement larger files
-*** test dir_remove
+
+
+* Time to complete
+the following are the times of the benchmarks in microseconds
+| test         | time |
+|--------------+------|
+| simple test  | 2905 |
+| test case    | 7025 |
+| bitmap check | 2430 |
