@@ -794,15 +794,12 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
     int copied = 0, reading = 0; 
     int blockIndex = offset / BLOCK_SIZE, withinBlockOffset = offset % BLOCK_SIZE;     
     char * block_ptr = (char *) malloc(BLOCK_SIZE);
-    int brokenFlag = 0;
 
     printf("ino: %d, size: %d, valid: %d\n", file->ino);
     print_arr(file->direct_ptr);
-    while (copied < size) {
-        if (file->direct_ptr[blockIndex] == 0) {
-            brokenFlag = 1;
+    while (copied < size || blockIndex >= DIRECT_PTR_ARR_SIZE) {
+        if (file->direct_ptr[blockIndex] == 0) 
             break;
-        }
         bio_read(realIndex(file->direct_ptr[blockIndex]), block_ptr);
         printf("block ptr: %d\n", block_ptr);
         reading = size - copied >= BLOCK_SIZE ? BLOCK_SIZE : size - copied;
@@ -811,46 +808,41 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
         withinBlockOffset = 0;
         blockIndex++;
     } 
-    
-    /* int indirectBlockIndex = (((offset / BLOCK_SIZE) - 16 ) / (BLOCK_SIZE / 4)) - 1; */
-    
-    /* int blockIndex = indirectBlockIndex >= 0 ?  */
-    /*     ((offset / BLOCK_SIZE) - DIRECT_PTR_ARR_SIZE) % (BLOCK_SIZE / 4) : offset / BLOCK_SIZE;  */
-    
-    /* int withinBlockOffset = offset % BLOCK_SIZE; */
-    /* int copied = 0, reading = 0, blockNum = 0; */
-    /* indirectBlockIndex--;  */
-    /* char* block_ptr = (char *) malloc(BLOCK_SIZE), indirect_ptr = (char *) malloc(BLOCK_SIZE);  */
 
-    /* while(copied < size) { */
-    /*     if (indirectBlockIndex == -1) { */
-    /*         blockNum = file->direct_ptr[blockIndex]; */
-    /*         if (blockNum == 0) */
-    /*             break; */
-    /*         bio_read(realIndex(blockNum), block_ptr); */
-    /*     } */
-    /*     if (indirectBlockIndex >= 0) { */
-    /*         blockNum = *((int *) (indirect_ptr + blockIndex * 4)); */
-    /*         if (get_bitmap(dataBitmap, realIndex(blockNum)) == 0) */
-    /*             break; */
-    /*         bio_read(realIndex(blockNum), block_ptr); */
-    /*     } */
+    char* indirect_ptr_block = (char *) malloc(BLOCK_SIZE);
+    int indirect_ptr_arr_index = 0;
+    int i = 0, data_block_id, start = 0;
+    int blocksOffset = 0;
+    if (copied == 0) {
+        // the amount of bytes offset into the indirect section
+        start = offset - 16 * BLOCK_SIZE; 
+        //the number of blocks into indirect section
+        blocksOffset = start / BLOCK_SIZE; 
+        //the number of indirect blocks into indirect section
+        indirect_ptr_arr_index = blocksOffset / (4 * BLOCK_SIZE); 
+        start = blocksOffset % (indirect_ptr_arr_index * 4 * BLOCK_SIZE);
+    }
+    /*
+        
+    */
 
-    /*     reading = size - copied >= BLOCK_SIZE ? BLOCK_SIZE : size - copied; */
-    /*     memcpy(buffer + copied, block_ptr + withinBlockOffset, reading); */
-    /*     copied += reading; */
-    /*     withinBlockOffset = 0; */
-
-    /*     blockIndex++; */
-    /*     if ((indirectBlockIndex == -1 && blockIndex >= DIRECT_PTR_ARR_SIZE) || blockIndex >= BLOCK_SIZE / 4) { */
-    /*         blockIndex = 0; */
-    /*         indirectBlockIndex++; */
-    /*         if (file->indirect_ptr[indirectBlockIndex] == 0) */
-    /*             break; */
-    /*         bio_read(indirectBlockIndex, indirect_ptr); */
-    /*     } */
-    /* } */
-
+    while (copied < size) {
+        if (file->indirect_ptr[indirect_ptr_arr_index] == 0) 
+            break;
+        bio_read(realIndex(file->indirect_ptr[indirect_ptr_arr_index]), indirect_ptr_block);
+        for (i = start; i < BLOCK_SIZE; i+= 4) {
+            data_block_id = *( (int *) (indirect_ptr_block + i));
+            if (get_bitmap(dataBitmap, realIndex(data_block_id)) == 1) {
+                bio_read(realIndex(data_block_id), block_ptr); 
+                reading = size - copied >= BLOCK_SIZE ? BLOCK_SIZE : size - copied;
+                memcpy(buffer + copied, block_ptr + withinBlockOffset, reading);
+                copied += reading;
+                withinBlockOffset = 0;
+            }
+        }
+        start = 0;
+        indirect_ptr_arr_index++;
+    }
 
     // Step 3: copy the correct amount of data from offset to buffer
     // Note: this function should return the amount of bytes you copied to buffer
@@ -889,45 +881,40 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
         blockIndex++;
     }
 
-    /* int indirectBlockIndex = (((offset / BLOCK_SIZE) - 16 ) / (BLOCK_SIZE / 4)) - 1; */
-    
-    /* int blockIndex = indirectBlockIndex >= 0 ?  */
-    /*     ((offset / BLOCK_SIZE) - DIRECT_PTR_ARR_SIZE) % (BLOCK_SIZE / 4) : offset / BLOCK_SIZE;  */
-    
-    /* int withinBlockOffset = offset % BLOCK_SIZE; */
-    /* int written = 0, writing = 0, blockNum = 0; */
-    /* indirectBlockIndex--;  */
-    /* char* block_ptr = (char *) malloc(BLOCK_SIZE), indirect_ptr = (char *) malloc(BLOCK_SIZE);  */
+    char* indirect_ptr_block = (char *) malloc(BLOCK_SIZE);
+    int indirect_ptr_arr_index = 0;
+    int i = 0, data_block_id, start = 0;
+    int blocksOffset = 0;
+    if (written == 0) {
+        // the amount of bytes offset into the indirect section
+        start = offset - 16 * BLOCK_SIZE; 
+        //the number of blocks into indirect section
+        blocksOffset = start / BLOCK_SIZE; 
+        //the number of indirect blocks into indirect section
+        indirect_ptr_arr_index = blocksOffset / (4 * BLOCK_SIZE); 
+        start = blocksOffset % (indirect_ptr_arr_index * 4 * BLOCK_SIZE);
+    }
+    /*
+        
+    */
 
-    /* while(written < size) { */
-    /*     if (indirectBlockIndex == -1) { */
-    /*         blockNum = file->direct_ptr[blockIndex]; */
-    /*         if (blockNum == 0) */
-    /*             break; */
-    /*         bio_read(realIndex(blockNum), block_ptr); */
-    /*     } */
-    /*     if (indirectBlockIndex >= 0) { */
-    /*         blockNum = *((int *) (indirect_ptr + blockIndex * 4)); */
-    /*         if (get_bitmap(dataBitmap, realIndex(blockNum)) == 0) */
-    /*             break; */
-    /*         bio_read(realIndex(blockNum), block_ptr); */
-    /*     } */
-
-    /*     writing = size - written >= BLOCK_SIZE ? BLOCK_SIZE : size - written; */
-    /*     memcpy(buffer + written, block_ptr + withinBlockOffset, writing); */
-    /*     bio_write(realIndex(blockNum), block_ptr); */
-    /*     written += writing; */
-    /*     withinBlockOffset = 0; */
-
-    /*     blockIndex++; */
-    /*     if ((indirectBlockIndex == -1 && blockIndex >= DIRECT_PTR_ARR_SIZE) || blockIndex >= BLOCK_SIZE / 4) { */
-    /*         blockIndex = 0; */
-    /*         indirectBlockIndex++; */
-    /*         if (file->indirect_ptr[indirectBlockIndex] == 0) */
-    /*             break; */
-    /*         bio_read(indirectBlockIndex, indirect_ptr); */
-    /*     } */
-    /* } */
+    while (written < size) {
+        if (file->indirect_ptr[indirect_ptr_arr_index] == 0) 
+            break;
+        bio_read(realIndex(file->indirect_ptr[indirect_ptr_arr_index]), indirect_ptr_block);
+        for (i = start; i < BLOCK_SIZE; i+= 4) {
+            data_block_id = *( (int *) (indirect_ptr_block + i));
+            if (get_bitmap(dataBitmap, realIndex(data_block_id)) == 1) {
+                bio_read(realIndex(data_block_id), block_ptr); 
+                writing = size - written >= BLOCK_SIZE ? BLOCK_SIZE : size - written;
+                memcpy(buffer + written, block_ptr + withinBlockOffset, writing);
+                written += writing;
+                withinBlockOffset = 0;
+            }
+        }
+        start = 0;
+        indirect_ptr_arr_index++;
+    }
 
     // Step 3: Write the correct amount of data from offset to disk
 
