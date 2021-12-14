@@ -1,4 +1,4 @@
-
+Harsha somisetty (hs884) Shivam Agrawal (sa1547)
 * Block Allocation
 
 
@@ -28,3 +28,9 @@ the following are the times of the benchmarks in microseconds
 | simple test  | 2905 |
 | test case    | 7025 |
 | bitmap check | 2430 |
+
+* Implemtation
+When implementing this file system, we first calculated how the disk file would be formatted. The first block will be devoted to the super block, the second to the inode bitmap, and the third to the datablock. From there, we calculated that we have 8189 4096 byte sized blocks left. With a system of equations, we found that we can have 482 blocks devoted to storing inodes and 7707 blocks devoted to storing data. We came to this conclusion because, with these numbers, we have the same number inodes as data bocks. 
+    Next, we went about implementing the functions. The get_avail_ino() and get_avail_blkno() functions were implemented through simply iterating through the bitmaps and searching for the first 0. Of course, any changes made to the bitmaps were saved back to the disk file. These functions also do not return the real index of the block - they return an abstract one. When the indices for a new block are loaded up from the disk, they are all initially    0. This makes it difficult to discern between a null block and the data block at index 0. Thus, we’ve created an abstract index for each data block, that is simply 1 plus it’s real index. For example, the data block at index 0 has an abstract index of 1, and the data block at index 1 has an abstract index of 2. This way, we can easily determine if a block number is null or points to a real block.
+The readi and writei functions are implemented in a straightforward manor - by calculating the offset into the inode block section and then using bio_read to load up the correct block. With memcpy, we bio_write we can also edit and save the inode to the disk. Dir_find, dir_add, and dir_remove are all implemented similarly. Using the infode numbers, we can find the correct offsets to load up the correct data blocks into memory. From there, we can easily iterate through dirent structures as well as add/remove dirent structures - saved back to disk with bio_write. Finally, we can implement get_node_by_path with a recursive function; we search through all of the root nodes’ dirent structures for the next directory before recalling the function on that next directory.
+The tfs functions have been implemented through the use of the previous functions.
